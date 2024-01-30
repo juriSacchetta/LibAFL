@@ -26,11 +26,17 @@ impl QemuFibersSchedulerHelper {
     }
 }
 
+impl Default for QemuFibersSchedulerHelper {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<S> QemuHelper<S> for QemuFibersSchedulerHelper
 where
     S: UsesInput,
 {
-    const HOOKS_DO_SIDE_EFFECTS: bool = false;
+    const HOOKS_DO_SIDE_EFFECTS: bool = true;
 
     fn init_hooks<QT>(&self, hooks: &QemuHooks<QT, S>)
     where
