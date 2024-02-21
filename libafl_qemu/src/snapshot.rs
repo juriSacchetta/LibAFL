@@ -8,6 +8,9 @@ use libafl::{inputs::UsesInput, state::HasMetadata};
 use meminterval::{Interval, IntervalTree};
 use thread_local::ThreadLocal;
 
+#[cfg(all(emulation_mode = "usermode", feature = "qemu_fibers"))]
+use libafl_qemu_sys::CPUArchState;
+
 #[cfg(any(cpu_target = "arm", cpu_target = "i386", cpu_target = "mips"))]
 use crate::SYS_fstatat64;
 #[cfg(not(cpu_target = "arm"))]
@@ -82,6 +85,8 @@ pub struct QemuSnapshotHelper {
     pub stop_execution: Option<StopExecutionCallback>,
     pub empty: bool,
     pub accurate_unmap: bool,
+    #[cfg(all(emulation_mode = "usermode", feature = "qemu_fibers"))]
+    pub saved_cpu_states: HashMap<usize, (u64, CPUArchState)>,
 }
 
 impl core::fmt::Debug for QemuSnapshotHelper {
@@ -98,6 +103,13 @@ impl core::fmt::Debug for QemuSnapshotHelper {
     }
 }
 
+#[cfg(all(emulation_mode = "usermode", feature = "qemu_fibers"))]
+extern "C" {
+    pub fn fibers_get_tid_by_cpu(s: *mut CPUArchState) -> u64;
+    pub fn fibers_restore_thread(tid: u64, s: *mut CPUArchState) -> ();
+    pub fn fibers_thread_clear_all() -> ();
+}
+
 impl QemuSnapshotHelper {
     #[must_use]
     pub fn new() -> Self {
@@ -112,6 +124,8 @@ impl QemuSnapshotHelper {
             stop_execution: None,
             empty: true,
             accurate_unmap: false,
+            #[cfg(all(emulation_mode = "usermode", feature = "qemu_fibers"))]
+            saved_cpu_states: HashMap::new(),
         }
     }
 
@@ -128,6 +142,8 @@ impl QemuSnapshotHelper {
             stop_execution: Some(stop_execution),
             empty: true,
             accurate_unmap: false,
+            #[cfg(all(emulation_mode = "usermode", feature = "qemu_fibers"))]
+            saved_cpu_states: HashMap::new(),
         }
     }
 
@@ -137,6 +153,12 @@ impl QemuSnapshotHelper {
 
     #[allow(clippy::uninit_assumed_init)]
     pub fn snapshot(&mut self, emulator: &Emulator) {
+        #[cfg(all(emulation_mode = "usermode", feature = "qemu_fibers"))]
+        for i in 0..emulator.num_cpus() {
+            let current = emulator.cpu_from_index(i);
+            let tid = unsafe { fibers_get_tid_by_cpu(libafl_qemu_sys::cpu_env(current.raw_ptr())) };
+            self.saved_cpu_states.insert(i, (tid, current.save_state()));
+        }
         self.brk = emulator.get_brk();
         self.mmap_start = emulator.get_mmap_start();
         self.pages.clear();
@@ -291,6 +313,14 @@ impl QemuSnapshotHelper {
                 ));
                 entry.value.changed = false;
             }
+        }
+        #[cfg(all(emulation_mode = "usermode", feature = "qemu_fibers"))]
+        unsafe {fibers_thread_clear_all();}
+        #[cfg(all(emulation_mode = "usermode", feature = "qemu_fibers"))]
+        for (idx, (tid, state)) in &self.saved_cpu_states {
+            let cpu = emulator.cpu_from_index(*idx);
+            cpu.restore_state(state);
+            unsafe{fibers_restore_thread(*tid, libafl_qemu_sys::cpu_env(cpu.raw_ptr()));}
         }
 
         emulator.set_brk(self.brk);

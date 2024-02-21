@@ -1,3 +1,5 @@
+#![cfg(all(emulation_mode = "usermode", feature = "qemu_fibers"))]
+
 use libafl::inputs::UsesInput;
 use libafl_bolts::rands::{Rand, RomuDuoJrRand};
 
@@ -7,28 +9,27 @@ extern "C" {
     fn fibers_call_scheduler() -> ();
 }
 
-#[cfg(emulation_mode = "usermode")]
 #[derive(Debug)]
 pub struct QemuFibersSchedulerHelper {
     pnrg: RomuDuoJrRand,
 }
 
 impl QemuFibersSchedulerHelper {
-    pub fn new() -> Self {
+    pub fn new(init_seed: u64) -> Self {
         Self {
-            pnrg: RomuDuoJrRand::with_seed(1),
+            pnrg: RomuDuoJrRand::with_seed(init_seed),
         }
     }
     pub fn should_call_scheduler(&self) -> bool {
         let mut pnrg = self.pnrg.clone();
         let rand = pnrg.next();
-        rand % 2 == 0
+        rand % 100 == 0
     }
 }
 
 impl Default for QemuFibersSchedulerHelper {
     fn default() -> Self {
-        Self::new()
+        Self::new(1)
     }
 }
 
@@ -42,7 +43,11 @@ where
     where
         QT: QemuHelperTuple<S>,
     {
-        hooks.blocks(Hook::Empty, Hook::Empty, Hook::Function(call_scheduler::<QT, S>));
+        hooks.blocks(
+            Hook::Empty,
+            Hook::Empty,
+            Hook::Function(call_scheduler::<QT, S>),
+        );
     }
 }
 
@@ -56,7 +61,6 @@ where
         .match_first_type::<QemuFibersSchedulerHelper>()
     {
         if h.should_call_scheduler() {
-            println!("Calling scheduler...");
             unsafe { fibers_call_scheduler() };
         }
     }

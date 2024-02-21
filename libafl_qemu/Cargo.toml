@@ -20,6 +20,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 default = ["fork", "build_libqasan", "serdeany_autoreg", "injections"]
 clippy = [] # special feature for clippy, don't use in normal projects§
 document-features = ["dep:document-features"]
+qemu_fibers = []
 
 #! # Feature Flags
 #! ### General Features

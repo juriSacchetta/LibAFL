@@ -77,7 +77,7 @@ pub use hooks::*;
 pub mod edges;
 pub use edges::QemuEdgeCoverageHelper;
 
-#[cfg(all(emulation_mode = "usermode"))]
+#[cfg(all(emulation_mode = "usermode", feature = "qemu_fibers"))]
 pub mod fibers;
 
 #[cfg(not(any(cpu_target = "mips", cpu_target = "hexagon")))]
