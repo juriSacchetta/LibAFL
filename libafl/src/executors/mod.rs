@@ -9,7 +9,7 @@ pub use combined::CombinedExecutor;
 pub use command::CommandExecutor;
 pub use differential::DiffExecutor;
 #[cfg(all(feature = "std", feature = "fork", unix))]
-pub use forkserver::{Forkserver, ForkserverExecutor, TimeoutForkserverExecutor};
+pub use forkserver::{Forkserver, ForkserverExecutor};
 pub use inprocess::InProcessExecutor;
 #[cfg(all(feature = "std", feature = "fork", unix))]
 pub use inprocess_fork::InProcessForkExecutor;
@@ -174,7 +174,7 @@ pub mod test {
         executors::{Executor, ExitKind},
         fuzzer::test::NopFuzzer,
         inputs::{BytesInput, HasTargetBytes},
-        state::{test::NopState, HasExecutions, State, UsesState},
+        state::{HasExecutions, NopState, State, UsesState},
     };
 
     /// A simple executor that does nothing.
@@ -497,17 +497,13 @@ pub mod pybind {
     impl HasObservers for PythonExecutor {
         #[inline]
         fn observers(&self) -> &PythonObserversTuple {
-            let ptr = unwrap_me!(self.wrapper, e, {
-                e.observers() as *const PythonObserversTuple
-            });
+            let ptr = unwrap_me!(self.wrapper, e, { core::ptr::from_ref(e.observers()) });
             unsafe { ptr.as_ref().unwrap() }
         }
 
         #[inline]
         fn observers_mut(&mut self) -> &mut PythonObserversTuple {
-            let ptr = unwrap_me_mut!(self.wrapper, e, {
-                e.observers_mut() as *mut PythonObserversTuple
-            });
+            let ptr = unwrap_me_mut!(self.wrapper, e, { core::ptr::from_mut(e.observers_mut()) });
             unsafe { ptr.as_mut().unwrap() }
         }
     }
