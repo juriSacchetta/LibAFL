@@ -1,15 +1,22 @@
 #![cfg(all(emulation_mode = "usermode", feature = "qemu_fibers"))]
 
+use core::fmt::Debug;
 use libafl::inputs::UsesInput;
 use libafl_bolts::rands::{Rand, RomuDuoJrRand};
 
-use crate::{Hook, QemuHelper, QemuHelperTuple, QemuHooks};
+use crate::{
+    Emulator, Hook, QemuHelper, QemuHelperTuple, QemuHooks,
+};
+
+use crate::fibers::input::HasSeed;
+
+pub mod input;
 
 extern "C" {
     fn fibers_call_scheduler() -> ();
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct QemuFibersSchedulerHelper {
     pnrg: RomuDuoJrRand,
 }
@@ -25,6 +32,9 @@ impl QemuFibersSchedulerHelper {
         let rand = pnrg.next();
         rand % 100 == 0
     }
+    pub fn set_seed(&mut self, seed: u64) {
+        self.pnrg = RomuDuoJrRand::with_seed(seed);
+    }
 }
 
 impl Default for QemuFibersSchedulerHelper {
@@ -35,7 +45,7 @@ impl Default for QemuFibersSchedulerHelper {
 
 impl<S> QemuHelper<S> for QemuFibersSchedulerHelper
 where
-    S: UsesInput,
+    S: UsesInput, S::Input: HasSeed
 {
     const HOOKS_DO_SIDE_EFFECTS: bool = true;
 
@@ -48,6 +58,10 @@ where
             Hook::Empty,
             Hook::Function(call_scheduler::<QT, S>),
         );
+    }
+
+    fn pre_exec(&mut self, _: &Emulator, _input: &S::Input) {
+        self.set_seed(_input.get_seed());
     }
 }
 
