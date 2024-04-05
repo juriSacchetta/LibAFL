@@ -12,6 +12,8 @@ use crate::fibers::input::HasSeed;
 
 pub mod input;
 
+pub mod mutator;
+
 extern "C" {
     fn fibers_call_scheduler() -> ();
 }

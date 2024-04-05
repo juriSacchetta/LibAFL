@@ -1,41 +1,59 @@
-use libafl::inputs::{Input, HasBytesVec, UsesInput};
-use libafl_bolts::HasLen;
-use std::rc::Rc;
-use std::cell::RefCell;
+use libafl::inputs::{HasBytesVec, Input};
+use libafl_bolts::{fs::write_file_atomic, ErrorBacktrace, HasLen};
 use serde::{Deserialize, Serialize};
+use std::{borrow::Borrow, fs::File, io::Read, path::Path};
+use libafl_bolts::Error;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct QemuFibersInput<T> {
     pub(crate) input: T,
+    pub(crate) seed: u64,
 }
 
-impl<T> QemuFibersInput<T> where T: Default + HasBytesVec {
+impl<T> QemuFibersInput<T>
+where
+    T: HasBytesVec + Default + Clone,
+{
     pub fn new() -> Self {
         Self {
             input: T::default(),
+            seed: 1,
         }
     }
-    pub fn get_seed(&self) -> u64 {
-        let input_bytes: &[u8] = self.input.bytes();
-        let u64_bytes: &[u8] = &input_bytes[..std::mem::size_of::<u64>()];
-        let u64_array: [u8; 8] = u64_bytes.try_into().expect("slice with incorrect length");
-        u64::from_le_bytes(u64_array)
+    pub fn get_input(&self) -> T {
+        self.input.clone()
     }
-    pub fn get_input(&self) -> Vec<u8> {
-        self.input.bytes()[std::mem::size_of::<u64>()..].to_vec()
+    pub fn get_input_mut(&mut self) -> &mut T {
+        &mut self.input
     }
-}
-
-impl<T> UsesInput for QemuFibersInput<T> where T: Input{
-    type Input = QemuFibersInput<T>;
 }
 
 impl<I> Input for QemuFibersInput<I>
 where
     I: Input,
 {
+    fn to_file<P>(&self, path: P) -> Result<(), Error>
+    where
+        P: AsRef<Path>,
+    {
+        let ser = serde_json::to_string(self)?;
+        write_file_atomic(path, ser.as_bytes())
+    }
+
+    fn from_file<P>(path: P) -> Result<Self, Error>
+    where
+        P: AsRef<Path>,
+    {
+        let mut file = File::open(&path)?;
+        let mut bytes = Vec::new();
+        file.read_to_end(&mut bytes)?;
+
+        let s = String::from_utf8(bytes)?;
+        serde_json::from_str(&s).map_err(|e| Error::Serialize(format!("{}", e), ErrorBacktrace::new()))
+    }
+
     fn generate_name(&self, idx: usize) -> String {
-        format!("fibers-{}", self.input.generate_name(idx))
+        format!("fibers-{}", self.input.borrow().generate_name(idx))
     }
 }
 
@@ -48,10 +66,21 @@ where
     }
 }
 
-impl<T> From<QemuFibersInput<T>> for Rc<RefCell<QemuFibersInput<T>>>
+pub trait HasSeed {
+    fn get_seed(&self) -> u64;
+    fn get_seed_mut(&mut self) -> &mut u64;
+}
+
+impl<T> HasSeed for QemuFibersInput<T>
+where
+    T: HasBytesVec + Clone + Default,
 {
-    fn from(input: QemuFibersInput<T>) -> Self {
-        Rc::new(RefCell::new(input))
+    fn get_seed(&self) -> u64 {
+        self.seed.clone()
+    }
+
+    fn get_seed_mut(&mut self) -> &mut u64 {
+        &mut self.seed
     }
 }
 
@@ -62,18 +91,8 @@ where
     fn bytes(&self) -> &[u8] {
         self.input.bytes()
     }
-    
+
     fn bytes_mut(&mut self) -> &mut Vec<u8> {
         self.input.bytes_mut()
-    }
-}
-
-pub trait HasSeed {
-    fn get_seed(&self) -> u64;
-}
-
-impl<T> HasSeed for QemuFibersInput<T> where T: Default + HasBytesVec{
-    fn get_seed(&self) -> u64 {
-       QemuFibersInput::get_seed(&self)
     }
 }
