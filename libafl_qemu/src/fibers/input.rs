@@ -53,7 +53,7 @@ where
     }
 
     fn generate_name(&self, idx: usize) -> String {
-        format!("fibers-{}", self.input.borrow().generate_name(idx))
+        format!("fibers-{}-{}", self.input.borrow().generate_name(idx), self.seed)
     }
 }
 
