@@ -21,12 +21,14 @@ extern "C" {
 #[derive(Clone, Copy, Debug)]
 pub struct QemuFibersSchedulerHelper {
     pnrg: RomuDuoJrRand,
+    seed: u64,
 }
 
 impl QemuFibersSchedulerHelper {
     pub fn new(init_seed: u64) -> Self {
         Self {
             pnrg: RomuDuoJrRand::with_seed(init_seed),
+            seed: init_seed,
         }
     }
     pub fn should_call_scheduler(&self) -> bool {
@@ -36,6 +38,7 @@ impl QemuFibersSchedulerHelper {
     }
     pub fn set_seed(&mut self, seed: u64) {
         self.pnrg = RomuDuoJrRand::with_seed(seed);
+        self.seed = seed;
     }
 }
 
