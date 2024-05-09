@@ -1,0 +1,38 @@
+# Variables
+[env]
+CUSTOM_QEMU_DIR='/home/js/Thesis/LibAFL/qemu-libafl-bridge'
+FUZZER_NAME='interleaving_fuzz'
+HARNESS='harness' 
+PROJECT_DIR = { script = ["pwd"] }
+PROFILE = "dev"
+PROFILE_DIR = "dev"
+#PROFILE = { value = "release", condition = {env_not_set = ["PROFILE"]} }
+#PROFILE_DIR = {value = "release", condition = {env_not_set = ["PROFILE_DIR"] }}
+#CUSTOM_QEMU_NO_CONFIGURE = "ok"
+
+[tasks.fuzzer]
+command = "cargo"
+args = ["build", "--profile", "${PROFILE}"]
+
+# Harness
+[tasks.harness]
+script_runner="@shell"
+script='''
+gcc multi-thread.c -o ${HARNESS}
+'''
+
+# Run the fuzzer
+[tasks.run]
+command = "cargo"
+args = ["run",  "--profile", "${PROFILE}", "./${HARNESS}", "--", "--libafl-in", "./corpus", "--libafl-out", "./out", "./${HARNESS}"]
+dependencies = [ "harness"]
+
+# Clean up
+[tasks.clean]
+# Disable default `clean` definition
+clear = true
+script_runner="@shell"
+script='''
+rm -f ./${FUZZER_NAME}
+cargo clean
+'''
