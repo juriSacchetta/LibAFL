@@ -1,0 +1,318 @@
+use libafl::inputs::UsesInput;
+use libafl_qemu::{GuestAddr, Hook, QemuHelper, QemuHelperTuple, QemuHooks, SyscallHookResult};
+use std::collections::HashMap;
+
+#[derive(Clone, Debug, Default)]
+struct QemuInterleavingHelper {
+    graph: HashMap<u32, Box<dyn Event>>,
+}
+
+
+impl QemuInterleavingHelper {
+    pub fn new() -> Self {
+        QemuInterleavingHelper {
+            events: HashMap::new(),
+        }
+    }
+    fn add_event(&mut self, vertex: dyn Event) {
+        self.events.entry(vertex).or_insert(Vec::new());
+    }
+
+        fn add_edge(&mut self, from: T, to: T) {
+        self.adjacency_list.entry(from).or_insert(Vec::new()).push(to);
+        // For undirected graph, uncomment the line below:
+        // self.adjacency_list.entry(to).or_insert(Vec::new()).push(from);
+    }   
+}
+
+impl<S> QemuHelper<S> for QemuInterleavingHelper
+where
+    S: UsesInput,
+{
+    const HOOKS_DO_SIDE_EFFECTS: bool = true;
+
+    fn init_hooks<QT>(&self, hooks: &QemuHooks<QT, S>)
+    where
+        QT: QemuHelperTuple<S>,
+    {
+        // hooks.reads(
+        //     Hook::Empty,
+        //     Hook::Function(trace_read1),
+        //     Hook::Function(trace_read2),
+        //     Hook::Function(trace_read4),
+        //     Hook::Function(trace_read8),
+        //     Hook::Function(trace_read_n),
+        // );
+
+        // hooks.writes(
+        //     Hook::Empty,
+        //     Hook::Function(trace_write1),
+        //     Hook::Function(trace_write2),
+        //     Hook::Function(trace_write4),
+        //     Hook::Function(trace_write8),
+        //     Hook::Function(trace_write_n),
+        // );
+
+        // hooks.thread_creation(Hook::Function(trace_thread_create));
+
+        hooks.syscalls(Hook::Function(trace_syscall_futex));
+    }
+}
+extern "C" {
+    pub fn fibers_syscall_gettid() -> u64;
+}
+
+// long syscall(SYS_futex, uint32_t *uaddr, int futex_op, uint32_t val,
+//     const struct timespec *timeout,   /* or: uint32_t val2 */
+//     uint32_t *uaddr2, uint32_t val3);
+pub fn trace_syscall_futex<QT, S>(
+    hooks: &mut QemuHooks<QT, S>,
+    _state: Option<&mut S>,
+    num_syscall: i32,
+    uaddr: u64,
+    futex_op: u64,
+    val: u64,
+    timeout: u64,
+    uaddr2: u64,
+    val3: u64,
+    _arg7: u64,
+    _arg8: u64,
+) -> SyscallHookResult
+where
+    S: UsesInput,
+    QT: QemuHelperTuple<S>,
+{
+    if num_syscall != 202 {
+        //println!("Seen syscall: {}", num_syscall);
+        return SyscallHookResult::new(Option::None);
+    }
+
+    println!(
+        "Thread {}: Syscall futex({:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x})",
+        unsafe { fibers_syscall_gettid() },
+        uaddr,
+        futex_op,
+        val,
+        timeout,
+        uaddr2,
+        val3
+    );
+    SyscallHookResult::new(Option::None)
+}
+
+pub fn trace_thread_create<QT, S>(
+    hooks: &mut QemuHooks<QT, S>,
+    _state: Option<&mut S>,
+    id: u32,
+) -> bool
+where
+    S: UsesInput,
+    QT: QemuHelperTuple<S>,
+{
+    println!("Thread {}: Created", id);
+    false
+}
+
+pub fn trace_read1<QT, S>(
+    hooks: &mut QemuHooks<QT, S>,
+    _state: Option<&mut S>,
+    id: u64,
+    addr: GuestAddr,
+) where
+    S: UsesInput,
+    QT: QemuHelperTuple<S>,
+{
+    println!(
+        "Thread {}: Read 1 byte from {:#x}",
+        unsafe { fibers_syscall_gettid() },
+        addr
+    );
+}
+
+pub fn trace_read2<QT, S>(
+    hooks: &mut QemuHooks<QT, S>,
+    _state: Option<&mut S>,
+    id: u64,
+    addr: GuestAddr,
+) where
+    S: UsesInput,
+    QT: QemuHelperTuple<S>,
+{
+    println!(
+        "Thread {}: Read 2 bytes from {:#x}",
+        unsafe { fibers_syscall_gettid() },
+        addr
+    );
+}
+
+pub fn trace_read4<QT, S>(
+    hooks: &mut QemuHooks<QT, S>,
+    _state: Option<&mut S>,
+    id: u64,
+    addr: GuestAddr,
+) where
+    S: UsesInput,
+    QT: QemuHelperTuple<S>,
+{
+    println!(
+        "Thread {}: Read 4 bytes from {:#x}",
+        unsafe { fibers_syscall_gettid() },
+        addr
+    );
+}
+
+pub fn trace_read8<QT, S>(
+    hooks: &mut QemuHooks<QT, S>,
+    _state: Option<&mut S>,
+    id: u64,
+    addr: GuestAddr,
+) where
+    S: UsesInput,
+    QT: QemuHelperTuple<S>,
+{
+    println!(
+        "Thread {}: Read 8 bytes from {:#x}",
+        unsafe { fibers_syscall_gettid() },
+        addr
+    );
+}
+
+pub fn trace_read_n<QT, S>(
+    hooks: &mut QemuHooks<QT, S>,
+    _state: Option<&mut S>,
+    id: u64,
+    addr: GuestAddr,
+    n: usize,
+) where
+    S: UsesInput,
+    QT: QemuHelperTuple<S>,
+{
+    println!(
+        "Thread {}: Read {} bytes from {:#x}",
+        unsafe { fibers_syscall_gettid() },
+        n,
+        addr
+    );
+}
+
+pub fn trace_write1<QT, S>(
+    hooks: &mut QemuHooks<QT, S>,
+    _state: Option<&mut S>,
+    id: u64,
+    addr: GuestAddr,
+) where
+    S: UsesInput,
+    QT: QemuHelperTuple<S>,
+{
+    println!(
+        "Thread {}: Write 1 byte to {:#x}",
+        unsafe { fibers_syscall_gettid() },
+        addr
+    );
+}
+
+pub fn trace_write2<QT, S>(
+    hooks: &mut QemuHooks<QT, S>,
+    _state: Option<&mut S>,
+    id: u64,
+    addr: GuestAddr,
+) where
+    S: UsesInput,
+    QT: QemuHelperTuple<S>,
+{
+    println!(
+        "Thread {}: Write 2 bytes to {:#x}",
+        unsafe { fibers_syscall_gettid() },
+        addr
+    );
+}
+
+pub fn trace_write4<QT, S>(
+    hooks: &mut QemuHooks<QT, S>,
+    _state: Option<&mut S>,
+    id: u64,
+    addr: GuestAddr,
+) where
+    S: UsesInput,
+    QT: QemuHelperTuple<S>,
+{
+    println!(
+        "Thread {}: Write 4 bytes to {:#x}",
+        unsafe { fibers_syscall_gettid() },
+        addr
+    );
+}
+
+pub fn trace_write8<QT, S>(
+    hooks: &mut QemuHooks<QT, S>,
+    _state: Option<&mut S>,
+    id: u64,
+    addr: GuestAddr,
+) where
+    S: UsesInput,
+    QT: QemuHelperTuple<S>,
+{
+    println!(
+        "Thread {}: Write 8 bytes to {:#x}",
+        unsafe { fibers_syscall_gettid() },
+        addr
+    );
+}
+
+pub fn trace_write_n<QT, S>(
+    hooks: &mut QemuHooks<QT, S>,
+    _state: Option<&mut S>,
+    id: u64,
+    addr: GuestAddr,
+    n: usize,
+) where
+    S: UsesInput,
+    QT: QemuHelperTuple<S>,
+{
+    println!(
+        "Thread {}: Write {} bytes to {:#x}",
+        unsafe { fibers_syscall_gettid() },
+        n,
+        addr
+    );
+}
+
+struct MemEvent {
+    thread_id: u32,
+    addr: GuestAddr,
+    size: usize,   
+    read: bool,
+}
+
+struct SyncEvent {
+    thread_id: u32,
+    addr: GuestAddr,
+    size: usize,
+    read: bool,
+}
+
+struct ThreadEvent {
+    thread_id: u32,
+    create: bool,
+}
+trait Event {
+    fn get_thread_id(&self) -> u32;
+}
+
+impl Event for MemEvent {
+    fn get_thread_id(&self) -> u32 {
+        self.thread_id
+    }
+}
+
+impl Event for SyncEvent {
+    fn get_thread_id(&self) -> u32 {
+        self.thread_id
+    }
+}
+
+impl Event for ThreadEvent {
+    fn get_thread_id(&self) -> u32 {
+        self.thread_id
+    }
+}

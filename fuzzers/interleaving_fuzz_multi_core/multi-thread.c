@@ -4,13 +4,13 @@
 #include <string.h>
 #include <unistd.h>
 
-#define NUM_THREADS 500
+#define NUM_THREADS 20
 #define MAX_SIZE 100
 char buf[MAX_SIZE] = {0};
 
 void *thread_vuln(void *thread_id)
 {
-    if (strcmp("hello",buf) == 0)
+    if (strcmp("hellotrwyqcvdfboiaàsnfgilvafegfòiuaerdghbvànòaefidujhnpOSIHDÒGFUO<LVNUGJHKXVOIÒCDHBSGVLFIASU<dglfhòiusgkbasòdoiuhj", buf) == 0)
     {
         printf("VULN TRIGGERED\n");
         printf("%s\n", buf);
@@ -53,7 +53,6 @@ int LLVMFuzzerTestOneInput(const char *data, size_t size)
 int main()
 {
     char data[MAX_SIZE];
-
     LLVMFuzzerTestOneInput(data, MAX_SIZE);
     return 0;
 }

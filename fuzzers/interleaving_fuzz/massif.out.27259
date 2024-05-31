@@ -1,0 +1,1853 @@
+desc: (none)
+cmd: ./target/debug/interleaving_fuzz ./harness -- --libafl-in ./corpus --libafl-out ./out ./harness
+time_unit: i
+#-----------
+snapshot=0
+#-----------
+time=0
+mem_heap_B=0
+mem_heap_extra_B=0
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=1
+#-----------
+time=85010015
+mem_heap_B=1414764
+mem_heap_extra_B=101892
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=2
+#-----------
+time=158271117
+mem_heap_B=10258443
+mem_heap_extra_B=94557
+mem_stacks_B=0
+heap_tree=detailed
+n7: 10258443 (heap allocation functions) malloc/new/new[], --alloc-fns, etc.
+ n1: 8388608 0x3E39BA: libafl_bolts::os::unix_signals::setup_signal_handler (unix_signals.rs:439)
+  n1: 8388608 0x3F038D: libafl::executors::hooks::inprocess::InProcessHooks<S>::new (inprocess.rs:246)
+   n1: 8388608 0x3E1085: libafl::executors::inprocess::inner::GenericInProcessExecutorInner<HT,OT,S>::with_timeout_generic (inner.rs:238)
+    n1: 8388608 0x3F86DF: libafl::executors::inprocess::GenericInProcessExecutor<H,&mut H,(),OT,S>::with_timeout (mod.rs:251)
+     n1: 8388608 0x3FD9FC: libafl_qemu::executor::QemuExecutor<H,OT,QT,S>::new (mod.rs:202)
+      n1: 8388608 0x3EEDFE: interleaving_fuzz::fuzz (main.rs:237)
+       n1: 8388608 0x3ED616: interleaving_fuzz::main (main.rs:116)
+        n1: 8388608 0x3C6BCA: core::ops::function::FnOnce::call_once (function.rs:250)
+         n1: 8388608 0x3D217D: std::sys_common::backtrace::__rust_begin_short_backtrace (backtrace.rs:155)
+          n1: 8388608 0x426A40: std::rt::lang_start::{{closure}} (rt.rs:166)
+           n1: 8388608 0xBFAE50: call_once<(), (dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (function.rs:284)
+            n1: 8388608 0xBFAE50: do_call<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panicking.rs:552)
+             n1: 8388608 0xBFAE50: try<i32, &(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (panicking.rs:516)
+              n1: 8388608 0xBFAE50: catch_unwind<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panic.rs:142)
+               n1: 8388608 0xBFAE50: {closure#2} (rt.rs:148)
+                n1: 8388608 0xBFAE50: do_call<std::rt::lang_start_internal::{closure_env#2}, isize> (panicking.rs:552)
+                 n1: 8388608 0xBFAE50: try<isize, std::rt::lang_start_internal::{closure_env#2}> (panicking.rs:516)
+                  n1: 8388608 0xBFAE50: catch_unwind<std::rt::lang_start_internal::{closure_env#2}, isize> (panic.rs:142)
+                   n1: 8388608 0xBFAE50: std::rt::lang_start_internal (rt.rs:148)
+                    n1: 8388608 0x426A19: std::rt::lang_start (rt.rs:165)
+                     n0: 8388608 0x3EF41D: main (in /home/js/Thesis/LibAFL/fuzzers/interleaving_fuzz/target/debug/interleaving_fuzz)
+ n4: 584160 0x4A5F292: g_malloc0 (gmem.c:133)
+  n1: 196656 0x69668D: tcg_exec_realizefn (cpu-exec.c:1158)
+   n1: 196656 0x665C78: cpu_exec_realizefn (cpu-target.c:288)
+    n1: 196656 0x616DDC: x86_cpu_realizefn (cpu.c:7308)
+     n1: 196656 0x6D6882: device_set_realized (qdev.c:510)
+      n1: 196656 0x6D9865: property_set_bool (object.c:2305)
+       n1: 196656 0x6DC3C1: object_property_set (object.c:1435)
+        n1: 196656 0x6DF7EE: object_property_set_qobject (qom-qobject.c:28)
+         n1: 196656 0x6DC623: object_property_set_bool (object.c:1504)
+          n2: 196656 0x60D423: cpu_create (cpu-common.c:61)
+           n1: 131104 0x6B1A12: cpu_copy (main.c:239)
+            n1: 131104 0x6C8C13: do_fork (syscall.c:6719)
+             n1: 131104 0x6CD299: do_syscall1.isra.0 (syscall.c:11143)
+              n1: 131104 0x6D1E71: do_syscall (syscall.c:14006)
+               n1: 131104 0x6113F7: cpu_loop (cpu_loop.c:263)
+                n1: 131104 0x670F88: fibers_cpu_loop (fibers.c:44)
+                 n1: 131104 0x66BA6A: pth_spawn_trampoline (pth_lib.c:216)
+                  n0: 131104 0x4BD6BDF: ??? (__start_context.S:66)
+           n0: 65552 in 1 place, below massif's threshold (1.00%)
+  n2: 170328 0x6DA0B6: type_new (object.c:106)
+   n2: 110168 0x6DA261: type_initialize_interface (object.c:274)
+    n1: 108288 0x6DA469: type_initialize (object.c:342)
+     n2: 108288 0x6DA469: type_initialize (object.c:300)
+      n1: 106032 0x6DAE41: object_class_foreach_tramp (object.c:1096)
+       n1: 106032 0x4A4598A: g_hash_table_foreach (ghash.c:2117)
+        n1: 106032 0x6DB527: object_class_foreach (object.c:1118)
+         n1: 106032 0x6B1EFF: qemu_user_init (main.c:851)
+          n1: 106032 0x4487FB: libafl_qemu::emu::Emulator::new (emu.rs:1072)
+           n1: 106032 0x3EDB64: interleaving_fuzz::fuzz (main.rs:132)
+            n1: 106032 0x3ED616: interleaving_fuzz::main (main.rs:116)
+             n1: 106032 0x3C6BCA: core::ops::function::FnOnce::call_once (function.rs:250)
+              n1: 106032 0x3D217D: std::sys_common::backtrace::__rust_begin_short_backtrace (backtrace.rs:155)
+               n1: 106032 0x426A40: std::rt::lang_start::{{closure}} (rt.rs:166)
+                n1: 106032 0xBFAE50: call_once<(), (dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (function.rs:284)
+                 n1: 106032 0xBFAE50: do_call<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panicking.rs:552)
+                  n1: 106032 0xBFAE50: try<i32, &(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (panicking.rs:516)
+                   n1: 106032 0xBFAE50: catch_unwind<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panic.rs:142)
+                    n1: 106032 0xBFAE50: {closure#2} (rt.rs:148)
+                     n1: 106032 0xBFAE50: do_call<std::rt::lang_start_internal::{closure_env#2}, isize> (panicking.rs:552)
+                      n1: 106032 0xBFAE50: try<isize, std::rt::lang_start_internal::{closure_env#2}> (panicking.rs:516)
+                       n1: 106032 0xBFAE50: catch_unwind<std::rt::lang_start_internal::{closure_env#2}, isize> (panic.rs:142)
+                        n1: 106032 0xBFAE50: std::rt::lang_start_internal (rt.rs:148)
+                         n1: 106032 0x426A19: std::rt::lang_start (rt.rs:165)
+                          n0: 106032 0x3EF41D: main (in /home/js/Thesis/LibAFL/fuzzers/interleaving_fuzz/target/debug/interleaving_fuzz)
+      n0: 2256 in 2 places, all below massif's threshold (1.00%)
+    n0: 1880 in 1 place, below massif's threshold (1.00%)
+   n0: 60160 in 3 places, all below massif's threshold (1.00%)
+  n0: 112024 in 22 places, all below massif's threshold (1.00%)
+  n1: 105152 0x6DA3EB: type_initialize (object.c:325)
+   n1: 105152 0x6DA3EB: type_initialize (object.c:300)
+    n0: 105152 in 4 places, all below massif's threshold (1.00%)
+ n1: 524608 0x70C3D0: qemu_try_memalign (memalign.c:53)
+  n2: 524608 0x70C500: qemu_memalign (memalign.c:73)
+   n1: 524288 0x708D34: qht_map_create (qht.c:457)
+    n1: 524288 0x709315: qht_init (qht.c:475)
+     n1: 524288 0x694F6B: tcg_init_machine (tcg-all.c:124)
+      n1: 524288 0x6B1F21: qemu_user_init (main.c:854)
+       n1: 524288 0x4487FB: libafl_qemu::emu::Emulator::new (emu.rs:1072)
+        n1: 524288 0x3EDB64: interleaving_fuzz::fuzz (main.rs:132)
+         n1: 524288 0x3ED616: interleaving_fuzz::main (main.rs:116)
+          n1: 524288 0x3C6BCA: core::ops::function::FnOnce::call_once (function.rs:250)
+           n1: 524288 0x3D217D: std::sys_common::backtrace::__rust_begin_short_backtrace (backtrace.rs:155)
+            n1: 524288 0x426A40: std::rt::lang_start::{{closure}} (rt.rs:166)
+             n1: 524288 0xBFAE50: call_once<(), (dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (function.rs:284)
+              n1: 524288 0xBFAE50: do_call<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panicking.rs:552)
+               n1: 524288 0xBFAE50: try<i32, &(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (panicking.rs:516)
+                n1: 524288 0xBFAE50: catch_unwind<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panic.rs:142)
+                 n1: 524288 0xBFAE50: {closure#2} (rt.rs:148)
+                  n1: 524288 0xBFAE50: do_call<std::rt::lang_start_internal::{closure_env#2}, isize> (panicking.rs:552)
+                   n1: 524288 0xBFAE50: try<isize, std::rt::lang_start_internal::{closure_env#2}> (panicking.rs:516)
+                    n1: 524288 0xBFAE50: catch_unwind<std::rt::lang_start_internal::{closure_env#2}, isize> (panic.rs:142)
+                     n1: 524288 0xBFAE50: std::rt::lang_start_internal (rt.rs:148)
+                      n1: 524288 0x426A19: std::rt::lang_start (rt.rs:165)
+                       n0: 524288 0x3EF41D: main (in /home/js/Thesis/LibAFL/fuzzers/interleaving_fuzz/target/debug/interleaving_fuzz)
+   n0: 320 in 2 places, all below massif's threshold (1.00%)
+ n1: 262144 0x67036F: __pth_tcb_alloc (pth_tcb.c:119)
+  n2: 262144 0x66B34F: pth_spawn (pth_lib.c:245)
+   n0: 131072 in 2 places, all below massif's threshold (1.00%)
+   n2: 131072 0x671A38: fibers_spawn (fibers-thread.c:27)
+    n1: 131072 0x6C8DA4: do_fork (syscall.c:6772)
+     n1: 131072 0x6CD299: do_syscall1.isra.0 (syscall.c:11143)
+      n1: 131072 0x6D1E71: do_syscall (syscall.c:14006)
+       n1: 131072 0x6113F7: cpu_loop (cpu_loop.c:263)
+        n1: 131072 0x670F88: fibers_cpu_loop (fibers.c:44)
+         n1: 131072 0x66BA6A: pth_spawn_trampoline (pth_lib.c:216)
+          n0: 131072 0x4BD6BDF: ??? (__start_context.S:66)
+    n0: 0 in 1 place, below massif's threshold (1.00%)
+ n1: 242508 0x4A5E58A: g_malloc (gmem.c:100)
+  n0: 242508 in 35 places, all below massif's threshold (1.00%)
+ n1: 131072 0x98E9F1: alloc_zeroed (alloc.rs:170)
+  n1: 131072 0x98E9F1: alloc::alloc::Global::alloc_impl (alloc.rs:181)
+   n1: 131072 0x98EC4B: <alloc::alloc::Global as core::alloc::Allocator>::allocate_zeroed (alloc.rs:246)
+    n1: 131072 0x98C989: alloc::raw_vec::RawVec<T,A>::allocate_in (raw_vec.rs:200)
+     n1: 131072 0x98E2D2: with_capacity_zeroed_in<u16, alloc::alloc::Global> (raw_vec.rs:153)
+      n1: 131072 0x98E2D2: <T as alloc::vec::spec_from_elem::SpecFromElem>::from_elem (spec_from_elem.rs:25)
+       n1: 131072 0x98BF00: alloc::vec::from_elem (mod.rs:2627)
+        n1: 131072 0x83DCA4: libafl::observers::map::init_count_class_16 (map.rs:62)
+         n1: 131072 0x4000EB: libafl::observers::map::HitcountsMapObserver<M>::new (map.rs:1485)
+          n1: 131072 0x3EE889: interleaving_fuzz::fuzz (main.rs:168)
+           n1: 131072 0x3ED616: interleaving_fuzz::main (main.rs:116)
+            n1: 131072 0x3C6BCA: core::ops::function::FnOnce::call_once (function.rs:250)
+             n1: 131072 0x3D217D: std::sys_common::backtrace::__rust_begin_short_backtrace (backtrace.rs:155)
+              n1: 131072 0x426A40: std::rt::lang_start::{{closure}} (rt.rs:166)
+               n1: 131072 0xBFAE50: call_once<(), (dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (function.rs:284)
+                n1: 131072 0xBFAE50: do_call<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panicking.rs:552)
+                 n1: 131072 0xBFAE50: try<i32, &(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (panicking.rs:516)
+                  n1: 131072 0xBFAE50: catch_unwind<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panic.rs:142)
+                   n1: 131072 0xBFAE50: {closure#2} (rt.rs:148)
+                    n1: 131072 0xBFAE50: do_call<std::rt::lang_start_internal::{closure_env#2}, isize> (panicking.rs:552)
+                     n1: 131072 0xBFAE50: try<isize, std::rt::lang_start_internal::{closure_env#2}> (panicking.rs:516)
+                      n1: 131072 0xBFAE50: catch_unwind<std::rt::lang_start_internal::{closure_env#2}, isize> (panic.rs:142)
+                       n1: 131072 0xBFAE50: std::rt::lang_start_internal (rt.rs:148)
+                        n1: 131072 0x426A19: std::rt::lang_start (rt.rs:165)
+                         n0: 131072 0x3EF41D: main (in /home/js/Thesis/LibAFL/fuzzers/interleaving_fuzz/target/debug/interleaving_fuzz)
+ n0: 125343 in 71 places, all below massif's threshold (1.00%)
+#-----------
+snapshot=3
+#-----------
+time=209587498
+mem_heap_B=10215414
+mem_heap_extra_B=99258
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=4
+#-----------
+time=284453055
+mem_heap_B=10217286
+mem_heap_extra_B=99738
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=5
+#-----------
+time=335810324
+mem_heap_B=10218582
+mem_heap_extra_B=100090
+mem_stacks_B=0
+heap_tree=detailed
+n7: 10218582 (heap allocation functions) malloc/new/new[], --alloc-fns, etc.
+ n1: 8388608 0x3E39BA: libafl_bolts::os::unix_signals::setup_signal_handler (unix_signals.rs:439)
+  n1: 8388608 0x3F038D: libafl::executors::hooks::inprocess::InProcessHooks<S>::new (inprocess.rs:246)
+   n1: 8388608 0x3E1085: libafl::executors::inprocess::inner::GenericInProcessExecutorInner<HT,OT,S>::with_timeout_generic (inner.rs:238)
+    n1: 8388608 0x3F86DF: libafl::executors::inprocess::GenericInProcessExecutor<H,&mut H,(),OT,S>::with_timeout (mod.rs:251)
+     n1: 8388608 0x3FD9FC: libafl_qemu::executor::QemuExecutor<H,OT,QT,S>::new (mod.rs:202)
+      n1: 8388608 0x3EEDFE: interleaving_fuzz::fuzz (main.rs:237)
+       n1: 8388608 0x3ED616: interleaving_fuzz::main (main.rs:116)
+        n1: 8388608 0x3C6BCA: core::ops::function::FnOnce::call_once (function.rs:250)
+         n1: 8388608 0x3D217D: std::sys_common::backtrace::__rust_begin_short_backtrace (backtrace.rs:155)
+          n1: 8388608 0x426A40: std::rt::lang_start::{{closure}} (rt.rs:166)
+           n1: 8388608 0xBFAE50: call_once<(), (dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (function.rs:284)
+            n1: 8388608 0xBFAE50: do_call<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panicking.rs:552)
+             n1: 8388608 0xBFAE50: try<i32, &(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (panicking.rs:516)
+              n1: 8388608 0xBFAE50: catch_unwind<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panic.rs:142)
+               n1: 8388608 0xBFAE50: {closure#2} (rt.rs:148)
+                n1: 8388608 0xBFAE50: do_call<std::rt::lang_start_internal::{closure_env#2}, isize> (panicking.rs:552)
+                 n1: 8388608 0xBFAE50: try<isize, std::rt::lang_start_internal::{closure_env#2}> (panicking.rs:516)
+                  n1: 8388608 0xBFAE50: catch_unwind<std::rt::lang_start_internal::{closure_env#2}, isize> (panic.rs:142)
+                   n1: 8388608 0xBFAE50: std::rt::lang_start_internal (rt.rs:148)
+                    n1: 8388608 0x426A19: std::rt::lang_start (rt.rs:165)
+                     n0: 8388608 0x3EF41D: main (in /home/js/Thesis/LibAFL/fuzzers/interleaving_fuzz/target/debug/interleaving_fuzz)
+ n1: 524608 0x70C3D0: qemu_try_memalign (memalign.c:53)
+  n2: 524608 0x70C500: qemu_memalign (memalign.c:73)
+   n1: 524288 0x708D34: qht_map_create (qht.c:457)
+    n1: 524288 0x709315: qht_init (qht.c:475)
+     n1: 524288 0x694F6B: tcg_init_machine (tcg-all.c:124)
+      n1: 524288 0x6B1F21: qemu_user_init (main.c:854)
+       n1: 524288 0x4487FB: libafl_qemu::emu::Emulator::new (emu.rs:1072)
+        n1: 524288 0x3EDB64: interleaving_fuzz::fuzz (main.rs:132)
+         n1: 524288 0x3ED616: interleaving_fuzz::main (main.rs:116)
+          n1: 524288 0x3C6BCA: core::ops::function::FnOnce::call_once (function.rs:250)
+           n1: 524288 0x3D217D: std::sys_common::backtrace::__rust_begin_short_backtrace (backtrace.rs:155)
+            n1: 524288 0x426A40: std::rt::lang_start::{{closure}} (rt.rs:166)
+             n1: 524288 0xBFAE50: call_once<(), (dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (function.rs:284)
+              n1: 524288 0xBFAE50: do_call<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panicking.rs:552)
+               n1: 524288 0xBFAE50: try<i32, &(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (panicking.rs:516)
+                n1: 524288 0xBFAE50: catch_unwind<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panic.rs:142)
+                 n1: 524288 0xBFAE50: {closure#2} (rt.rs:148)
+                  n1: 524288 0xBFAE50: do_call<std::rt::lang_start_internal::{closure_env#2}, isize> (panicking.rs:552)
+                   n1: 524288 0xBFAE50: try<isize, std::rt::lang_start_internal::{closure_env#2}> (panicking.rs:516)
+                    n1: 524288 0xBFAE50: catch_unwind<std::rt::lang_start_internal::{closure_env#2}, isize> (panic.rs:142)
+                     n1: 524288 0xBFAE50: std::rt::lang_start_internal (rt.rs:148)
+                      n1: 524288 0x426A19: std::rt::lang_start (rt.rs:165)
+                       n0: 524288 0x3EF41D: main (in /home/js/Thesis/LibAFL/fuzzers/interleaving_fuzz/target/debug/interleaving_fuzz)
+   n0: 320 in 2 places, all below massif's threshold (1.00%)
+ n4: 518608 0x4A5F292: g_malloc0 (gmem.c:133)
+  n2: 170328 0x6DA0B6: type_new (object.c:106)
+   n2: 110168 0x6DA261: type_initialize_interface (object.c:274)
+    n1: 108288 0x6DA469: type_initialize (object.c:342)
+     n2: 108288 0x6DA469: type_initialize (object.c:300)
+      n1: 106032 0x6DAE41: object_class_foreach_tramp (object.c:1096)
+       n1: 106032 0x4A4598A: g_hash_table_foreach (ghash.c:2117)
+        n1: 106032 0x6DB527: object_class_foreach (object.c:1118)
+         n1: 106032 0x6B1EFF: qemu_user_init (main.c:851)
+          n1: 106032 0x4487FB: libafl_qemu::emu::Emulator::new (emu.rs:1072)
+           n1: 106032 0x3EDB64: interleaving_fuzz::fuzz (main.rs:132)
+            n1: 106032 0x3ED616: interleaving_fuzz::main (main.rs:116)
+             n1: 106032 0x3C6BCA: core::ops::function::FnOnce::call_once (function.rs:250)
+              n1: 106032 0x3D217D: std::sys_common::backtrace::__rust_begin_short_backtrace (backtrace.rs:155)
+               n1: 106032 0x426A40: std::rt::lang_start::{{closure}} (rt.rs:166)
+                n1: 106032 0xBFAE50: call_once<(), (dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (function.rs:284)
+                 n1: 106032 0xBFAE50: do_call<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panicking.rs:552)
+                  n1: 106032 0xBFAE50: try<i32, &(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (panicking.rs:516)
+                   n1: 106032 0xBFAE50: catch_unwind<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panic.rs:142)
+                    n1: 106032 0xBFAE50: {closure#2} (rt.rs:148)
+                     n1: 106032 0xBFAE50: do_call<std::rt::lang_start_internal::{closure_env#2}, isize> (panicking.rs:552)
+                      n1: 106032 0xBFAE50: try<isize, std::rt::lang_start_internal::{closure_env#2}> (panicking.rs:516)
+                       n1: 106032 0xBFAE50: catch_unwind<std::rt::lang_start_internal::{closure_env#2}, isize> (panic.rs:142)
+                        n1: 106032 0xBFAE50: std::rt::lang_start_internal (rt.rs:148)
+                         n1: 106032 0x426A19: std::rt::lang_start (rt.rs:165)
+                          n0: 106032 0x3EF41D: main (in /home/js/Thesis/LibAFL/fuzzers/interleaving_fuzz/target/debug/interleaving_fuzz)
+      n0: 2256 in 2 places, all below massif's threshold (1.00%)
+    n0: 1880 in 1 place, below massif's threshold (1.00%)
+   n0: 60160 in 3 places, all below massif's threshold (1.00%)
+  n1: 131104 0x69668D: tcg_exec_realizefn (cpu-exec.c:1158)
+   n1: 131104 0x665C78: cpu_exec_realizefn (cpu-target.c:288)
+    n1: 131104 0x616DDC: x86_cpu_realizefn (cpu.c:7308)
+     n1: 131104 0x6D6882: device_set_realized (qdev.c:510)
+      n1: 131104 0x6D9865: property_set_bool (object.c:2305)
+       n1: 131104 0x6DC3C1: object_property_set (object.c:1435)
+        n1: 131104 0x6DF7EE: object_property_set_qobject (qom-qobject.c:28)
+         n1: 131104 0x6DC623: object_property_set_bool (object.c:1504)
+          n1: 131104 0x60D423: cpu_create (cpu-common.c:61)
+           n0: 131104 in 2 places, all below massif's threshold (1.00%)
+  n0: 112024 in 22 places, all below massif's threshold (1.00%)
+  n1: 105152 0x6DA3EB: type_initialize (object.c:325)
+   n1: 105152 0x6DA3EB: type_initialize (object.c:300)
+    n0: 105152 in 4 places, all below massif's threshold (1.00%)
+ n1: 262144 0x67036F: __pth_tcb_alloc (pth_tcb.c:119)
+  n2: 262144 0x66B34F: pth_spawn (pth_lib.c:245)
+   n0: 131072 in 2 places, all below massif's threshold (1.00%)
+   n2: 131072 0x671A38: fibers_spawn (fibers-thread.c:27)
+    n1: 131072 0x6C8DA4: do_fork (syscall.c:6772)
+     n1: 131072 0x6CD299: do_syscall1.isra.0 (syscall.c:11143)
+      n1: 131072 0x6D1E71: do_syscall (syscall.c:14006)
+       n1: 131072 0x6113F7: cpu_loop (cpu_loop.c:263)
+        n1: 131072 0x670F88: fibers_cpu_loop (fibers.c:44)
+         n1: 131072 0x66BA6A: pth_spawn_trampoline (pth_lib.c:216)
+          n0: 131072 0x4BD6BDF: ??? (__start_context.S:66)
+    n0: 0 in 1 place, below massif's threshold (1.00%)
+ n1: 254734 0x4A5E58A: g_malloc (gmem.c:100)
+  n0: 254734 in 35 places, all below massif's threshold (1.00%)
+ n0: 138808 in 75 places, all below massif's threshold (1.00%)
+ n1: 131072 0x98E9F1: alloc_zeroed (alloc.rs:170)
+  n1: 131072 0x98E9F1: alloc::alloc::Global::alloc_impl (alloc.rs:181)
+   n1: 131072 0x98EC4B: <alloc::alloc::Global as core::alloc::Allocator>::allocate_zeroed (alloc.rs:246)
+    n1: 131072 0x98C989: alloc::raw_vec::RawVec<T,A>::allocate_in (raw_vec.rs:200)
+     n1: 131072 0x98E2D2: with_capacity_zeroed_in<u16, alloc::alloc::Global> (raw_vec.rs:153)
+      n1: 131072 0x98E2D2: <T as alloc::vec::spec_from_elem::SpecFromElem>::from_elem (spec_from_elem.rs:25)
+       n1: 131072 0x98BF00: alloc::vec::from_elem (mod.rs:2627)
+        n1: 131072 0x83DCA4: libafl::observers::map::init_count_class_16 (map.rs:62)
+         n1: 131072 0x4000EB: libafl::observers::map::HitcountsMapObserver<M>::new (map.rs:1485)
+          n1: 131072 0x3EE889: interleaving_fuzz::fuzz (main.rs:168)
+           n1: 131072 0x3ED616: interleaving_fuzz::main (main.rs:116)
+            n1: 131072 0x3C6BCA: core::ops::function::FnOnce::call_once (function.rs:250)
+             n1: 131072 0x3D217D: std::sys_common::backtrace::__rust_begin_short_backtrace (backtrace.rs:155)
+              n1: 131072 0x426A40: std::rt::lang_start::{{closure}} (rt.rs:166)
+               n1: 131072 0xBFAE50: call_once<(), (dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (function.rs:284)
+                n1: 131072 0xBFAE50: do_call<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panicking.rs:552)
+                 n1: 131072 0xBFAE50: try<i32, &(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (panicking.rs:516)
+                  n1: 131072 0xBFAE50: catch_unwind<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panic.rs:142)
+                   n1: 131072 0xBFAE50: {closure#2} (rt.rs:148)
+                    n1: 131072 0xBFAE50: do_call<std::rt::lang_start_internal::{closure_env#2}, isize> (panicking.rs:552)
+                     n1: 131072 0xBFAE50: try<isize, std::rt::lang_start_internal::{closure_env#2}> (panicking.rs:516)
+                      n1: 131072 0xBFAE50: catch_unwind<std::rt::lang_start_internal::{closure_env#2}, isize> (panic.rs:142)
+                       n1: 131072 0xBFAE50: std::rt::lang_start_internal (rt.rs:148)
+                        n1: 131072 0x426A19: std::rt::lang_start (rt.rs:165)
+                         n0: 131072 0x3EF41D: main (in /home/js/Thesis/LibAFL/fuzzers/interleaving_fuzz/target/debug/interleaving_fuzz)
+#-----------
+snapshot=6
+#-----------
+time=404316369
+mem_heap_B=10220310
+mem_heap_extra_B=100666
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=7
+#-----------
+time=461405106
+mem_heap_B=10221752
+mem_heap_extra_B=101144
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=8
+#-----------
+time=552756629
+mem_heap_B=10224066
+mem_heap_extra_B=101862
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=9
+#-----------
+time=645243704
+mem_heap_B=10226370
+mem_heap_extra_B=102534
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=10
+#-----------
+time=692342105
+mem_heap_B=10227522
+mem_heap_extra_B=102870
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=11
+#-----------
+time=751236346
+mem_heap_B=10228962
+mem_heap_extra_B=103302
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=12
+#-----------
+time=833671999
+mem_heap_B=10230978
+mem_heap_extra_B=103926
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=13
+#-----------
+time=880786938
+mem_heap_B=10232130
+mem_heap_extra_B=104358
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=14
+#-----------
+time=937237786
+mem_heap_B=10233426
+mem_heap_extra_B=104694
+mem_stacks_B=0
+heap_tree=detailed
+n7: 10233426 (heap allocation functions) malloc/new/new[], --alloc-fns, etc.
+ n1: 8388608 0x3E39BA: libafl_bolts::os::unix_signals::setup_signal_handler (unix_signals.rs:439)
+  n1: 8388608 0x3F038D: libafl::executors::hooks::inprocess::InProcessHooks<S>::new (inprocess.rs:246)
+   n1: 8388608 0x3E1085: libafl::executors::inprocess::inner::GenericInProcessExecutorInner<HT,OT,S>::with_timeout_generic (inner.rs:238)
+    n1: 8388608 0x3F86DF: libafl::executors::inprocess::GenericInProcessExecutor<H,&mut H,(),OT,S>::with_timeout (mod.rs:251)
+     n1: 8388608 0x3FD9FC: libafl_qemu::executor::QemuExecutor<H,OT,QT,S>::new (mod.rs:202)
+      n1: 8388608 0x3EEDFE: interleaving_fuzz::fuzz (main.rs:237)
+       n1: 8388608 0x3ED616: interleaving_fuzz::main (main.rs:116)
+        n1: 8388608 0x3C6BCA: core::ops::function::FnOnce::call_once (function.rs:250)
+         n1: 8388608 0x3D217D: std::sys_common::backtrace::__rust_begin_short_backtrace (backtrace.rs:155)
+          n1: 8388608 0x426A40: std::rt::lang_start::{{closure}} (rt.rs:166)
+           n1: 8388608 0xBFAE50: call_once<(), (dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (function.rs:284)
+            n1: 8388608 0xBFAE50: do_call<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panicking.rs:552)
+             n1: 8388608 0xBFAE50: try<i32, &(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (panicking.rs:516)
+              n1: 8388608 0xBFAE50: catch_unwind<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panic.rs:142)
+               n1: 8388608 0xBFAE50: {closure#2} (rt.rs:148)
+                n1: 8388608 0xBFAE50: do_call<std::rt::lang_start_internal::{closure_env#2}, isize> (panicking.rs:552)
+                 n1: 8388608 0xBFAE50: try<isize, std::rt::lang_start_internal::{closure_env#2}> (panicking.rs:516)
+                  n1: 8388608 0xBFAE50: catch_unwind<std::rt::lang_start_internal::{closure_env#2}, isize> (panic.rs:142)
+                   n1: 8388608 0xBFAE50: std::rt::lang_start_internal (rt.rs:148)
+                    n1: 8388608 0x426A19: std::rt::lang_start (rt.rs:165)
+                     n0: 8388608 0x3EF41D: main (in /home/js/Thesis/LibAFL/fuzzers/interleaving_fuzz/target/debug/interleaving_fuzz)
+ n1: 524608 0x70C3D0: qemu_try_memalign (memalign.c:53)
+  n2: 524608 0x70C500: qemu_memalign (memalign.c:73)
+   n1: 524288 0x708D34: qht_map_create (qht.c:457)
+    n1: 524288 0x709315: qht_init (qht.c:475)
+     n1: 524288 0x694F6B: tcg_init_machine (tcg-all.c:124)
+      n1: 524288 0x6B1F21: qemu_user_init (main.c:854)
+       n1: 524288 0x4487FB: libafl_qemu::emu::Emulator::new (emu.rs:1072)
+        n1: 524288 0x3EDB64: interleaving_fuzz::fuzz (main.rs:132)
+         n1: 524288 0x3ED616: interleaving_fuzz::main (main.rs:116)
+          n1: 524288 0x3C6BCA: core::ops::function::FnOnce::call_once (function.rs:250)
+           n1: 524288 0x3D217D: std::sys_common::backtrace::__rust_begin_short_backtrace (backtrace.rs:155)
+            n1: 524288 0x426A40: std::rt::lang_start::{{closure}} (rt.rs:166)
+             n1: 524288 0xBFAE50: call_once<(), (dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (function.rs:284)
+              n1: 524288 0xBFAE50: do_call<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panicking.rs:552)
+               n1: 524288 0xBFAE50: try<i32, &(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (panicking.rs:516)
+                n1: 524288 0xBFAE50: catch_unwind<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panic.rs:142)
+                 n1: 524288 0xBFAE50: {closure#2} (rt.rs:148)
+                  n1: 524288 0xBFAE50: do_call<std::rt::lang_start_internal::{closure_env#2}, isize> (panicking.rs:552)
+                   n1: 524288 0xBFAE50: try<isize, std::rt::lang_start_internal::{closure_env#2}> (panicking.rs:516)
+                    n1: 524288 0xBFAE50: catch_unwind<std::rt::lang_start_internal::{closure_env#2}, isize> (panic.rs:142)
+                     n1: 524288 0xBFAE50: std::rt::lang_start_internal (rt.rs:148)
+                      n1: 524288 0x426A19: std::rt::lang_start (rt.rs:165)
+                       n0: 524288 0x3EF41D: main (in /home/js/Thesis/LibAFL/fuzzers/interleaving_fuzz/target/debug/interleaving_fuzz)
+   n0: 320 in 2 places, all below massif's threshold (1.00%)
+ n4: 518608 0x4A5F292: g_malloc0 (gmem.c:133)
+  n2: 170328 0x6DA0B6: type_new (object.c:106)
+   n2: 110168 0x6DA261: type_initialize_interface (object.c:274)
+    n1: 108288 0x6DA469: type_initialize (object.c:342)
+     n2: 108288 0x6DA469: type_initialize (object.c:300)
+      n1: 106032 0x6DAE41: object_class_foreach_tramp (object.c:1096)
+       n1: 106032 0x4A4598A: g_hash_table_foreach (ghash.c:2117)
+        n1: 106032 0x6DB527: object_class_foreach (object.c:1118)
+         n1: 106032 0x6B1EFF: qemu_user_init (main.c:851)
+          n1: 106032 0x4487FB: libafl_qemu::emu::Emulator::new (emu.rs:1072)
+           n1: 106032 0x3EDB64: interleaving_fuzz::fuzz (main.rs:132)
+            n1: 106032 0x3ED616: interleaving_fuzz::main (main.rs:116)
+             n1: 106032 0x3C6BCA: core::ops::function::FnOnce::call_once (function.rs:250)
+              n1: 106032 0x3D217D: std::sys_common::backtrace::__rust_begin_short_backtrace (backtrace.rs:155)
+               n1: 106032 0x426A40: std::rt::lang_start::{{closure}} (rt.rs:166)
+                n1: 106032 0xBFAE50: call_once<(), (dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (function.rs:284)
+                 n1: 106032 0xBFAE50: do_call<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panicking.rs:552)
+                  n1: 106032 0xBFAE50: try<i32, &(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (panicking.rs:516)
+                   n1: 106032 0xBFAE50: catch_unwind<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panic.rs:142)
+                    n1: 106032 0xBFAE50: {closure#2} (rt.rs:148)
+                     n1: 106032 0xBFAE50: do_call<std::rt::lang_start_internal::{closure_env#2}, isize> (panicking.rs:552)
+                      n1: 106032 0xBFAE50: try<isize, std::rt::lang_start_internal::{closure_env#2}> (panicking.rs:516)
+                       n1: 106032 0xBFAE50: catch_unwind<std::rt::lang_start_internal::{closure_env#2}, isize> (panic.rs:142)
+                        n1: 106032 0xBFAE50: std::rt::lang_start_internal (rt.rs:148)
+                         n1: 106032 0x426A19: std::rt::lang_start (rt.rs:165)
+                          n0: 106032 0x3EF41D: main (in /home/js/Thesis/LibAFL/fuzzers/interleaving_fuzz/target/debug/interleaving_fuzz)
+      n0: 2256 in 2 places, all below massif's threshold (1.00%)
+    n0: 1880 in 1 place, below massif's threshold (1.00%)
+   n0: 60160 in 3 places, all below massif's threshold (1.00%)
+  n1: 131104 0x69668D: tcg_exec_realizefn (cpu-exec.c:1158)
+   n1: 131104 0x665C78: cpu_exec_realizefn (cpu-target.c:288)
+    n1: 131104 0x616DDC: x86_cpu_realizefn (cpu.c:7308)
+     n1: 131104 0x6D6882: device_set_realized (qdev.c:510)
+      n1: 131104 0x6D9865: property_set_bool (object.c:2305)
+       n1: 131104 0x6DC3C1: object_property_set (object.c:1435)
+        n1: 131104 0x6DF7EE: object_property_set_qobject (qom-qobject.c:28)
+         n1: 131104 0x6DC623: object_property_set_bool (object.c:1504)
+          n1: 131104 0x60D423: cpu_create (cpu-common.c:61)
+           n0: 131104 in 2 places, all below massif's threshold (1.00%)
+  n0: 112024 in 22 places, all below massif's threshold (1.00%)
+  n1: 105152 0x6DA3EB: type_initialize (object.c:325)
+   n1: 105152 0x6DA3EB: type_initialize (object.c:300)
+    n0: 105152 in 4 places, all below massif's threshold (1.00%)
+ n1: 262152 0x4A5E58A: g_malloc (gmem.c:100)
+  n0: 262152 in 35 places, all below massif's threshold (1.00%)
+ n1: 262144 0x67036F: __pth_tcb_alloc (pth_tcb.c:119)
+  n2: 262144 0x66B34F: pth_spawn (pth_lib.c:245)
+   n0: 131072 in 2 places, all below massif's threshold (1.00%)
+   n2: 131072 0x671A38: fibers_spawn (fibers-thread.c:27)
+    n1: 131072 0x6C8DA4: do_fork (syscall.c:6772)
+     n1: 131072 0x6CD299: do_syscall1.isra.0 (syscall.c:11143)
+      n1: 131072 0x6D1E71: do_syscall (syscall.c:14006)
+       n1: 131072 0x6113F7: cpu_loop (cpu_loop.c:263)
+        n1: 131072 0x670F88: fibers_cpu_loop (fibers.c:44)
+         n1: 131072 0x66BA6A: pth_spawn_trampoline (pth_lib.c:216)
+          n0: 131072 0x4BD6BDF: ??? (__start_context.S:66)
+    n0: 0 in 1 place, below massif's threshold (1.00%)
+ n0: 146234 in 75 places, all below massif's threshold (1.00%)
+ n1: 131072 0x98E9F1: alloc_zeroed (alloc.rs:170)
+  n1: 131072 0x98E9F1: alloc::alloc::Global::alloc_impl (alloc.rs:181)
+   n1: 131072 0x98EC4B: <alloc::alloc::Global as core::alloc::Allocator>::allocate_zeroed (alloc.rs:246)
+    n1: 131072 0x98C989: alloc::raw_vec::RawVec<T,A>::allocate_in (raw_vec.rs:200)
+     n1: 131072 0x98E2D2: with_capacity_zeroed_in<u16, alloc::alloc::Global> (raw_vec.rs:153)
+      n1: 131072 0x98E2D2: <T as alloc::vec::spec_from_elem::SpecFromElem>::from_elem (spec_from_elem.rs:25)
+       n1: 131072 0x98BF00: alloc::vec::from_elem (mod.rs:2627)
+        n1: 131072 0x83DCA4: libafl::observers::map::init_count_class_16 (map.rs:62)
+         n1: 131072 0x4000EB: libafl::observers::map::HitcountsMapObserver<M>::new (map.rs:1485)
+          n1: 131072 0x3EE889: interleaving_fuzz::fuzz (main.rs:168)
+           n1: 131072 0x3ED616: interleaving_fuzz::main (main.rs:116)
+            n1: 131072 0x3C6BCA: core::ops::function::FnOnce::call_once (function.rs:250)
+             n1: 131072 0x3D217D: std::sys_common::backtrace::__rust_begin_short_backtrace (backtrace.rs:155)
+              n1: 131072 0x426A40: std::rt::lang_start::{{closure}} (rt.rs:166)
+               n1: 131072 0xBFAE50: call_once<(), (dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (function.rs:284)
+                n1: 131072 0xBFAE50: do_call<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panicking.rs:552)
+                 n1: 131072 0xBFAE50: try<i32, &(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (panicking.rs:516)
+                  n1: 131072 0xBFAE50: catch_unwind<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panic.rs:142)
+                   n1: 131072 0xBFAE50: {closure#2} (rt.rs:148)
+                    n1: 131072 0xBFAE50: do_call<std::rt::lang_start_internal::{closure_env#2}, isize> (panicking.rs:552)
+                     n1: 131072 0xBFAE50: try<isize, std::rt::lang_start_internal::{closure_env#2}> (panicking.rs:516)
+                      n1: 131072 0xBFAE50: catch_unwind<std::rt::lang_start_internal::{closure_env#2}, isize> (panic.rs:142)
+                       n1: 131072 0xBFAE50: std::rt::lang_start_internal (rt.rs:148)
+                        n1: 131072 0x426A19: std::rt::lang_start (rt.rs:165)
+                         n0: 131072 0x3EF41D: main (in /home/js/Thesis/LibAFL/fuzzers/interleaving_fuzz/target/debug/interleaving_fuzz)
+#-----------
+snapshot=15
+#-----------
+time=1019714243
+mem_heap_B=10235442
+mem_heap_extra_B=105382
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=16
+#-----------
+time=1090412509
+mem_heap_B=10237170
+mem_heap_extra_B=105942
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=17
+#-----------
+time=1161116018
+mem_heap_B=10238898
+mem_heap_extra_B=106518
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=18
+#-----------
+time=1235231301
+mem_heap_B=10240626
+mem_heap_extra_B=107094
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=19
+#-----------
+time=1305911947
+mem_heap_B=10242354
+mem_heap_extra_B=107734
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=20
+#-----------
+time=1364803918
+mem_heap_B=10243794
+mem_heap_extra_B=108166
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=21
+#-----------
+time=1435473820
+mem_heap_B=10245522
+mem_heap_extra_B=108694
+mem_stacks_B=0
+heap_tree=detailed
+n7: 10245522 (heap allocation functions) malloc/new/new[], --alloc-fns, etc.
+ n1: 8388608 0x3E39BA: libafl_bolts::os::unix_signals::setup_signal_handler (unix_signals.rs:439)
+  n1: 8388608 0x3F038D: libafl::executors::hooks::inprocess::InProcessHooks<S>::new (inprocess.rs:246)
+   n1: 8388608 0x3E1085: libafl::executors::inprocess::inner::GenericInProcessExecutorInner<HT,OT,S>::with_timeout_generic (inner.rs:238)
+    n1: 8388608 0x3F86DF: libafl::executors::inprocess::GenericInProcessExecutor<H,&mut H,(),OT,S>::with_timeout (mod.rs:251)
+     n1: 8388608 0x3FD9FC: libafl_qemu::executor::QemuExecutor<H,OT,QT,S>::new (mod.rs:202)
+      n1: 8388608 0x3EEDFE: interleaving_fuzz::fuzz (main.rs:237)
+       n1: 8388608 0x3ED616: interleaving_fuzz::main (main.rs:116)
+        n1: 8388608 0x3C6BCA: core::ops::function::FnOnce::call_once (function.rs:250)
+         n1: 8388608 0x3D217D: std::sys_common::backtrace::__rust_begin_short_backtrace (backtrace.rs:155)
+          n1: 8388608 0x426A40: std::rt::lang_start::{{closure}} (rt.rs:166)
+           n1: 8388608 0xBFAE50: call_once<(), (dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (function.rs:284)
+            n1: 8388608 0xBFAE50: do_call<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panicking.rs:552)
+             n1: 8388608 0xBFAE50: try<i32, &(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (panicking.rs:516)
+              n1: 8388608 0xBFAE50: catch_unwind<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panic.rs:142)
+               n1: 8388608 0xBFAE50: {closure#2} (rt.rs:148)
+                n1: 8388608 0xBFAE50: do_call<std::rt::lang_start_internal::{closure_env#2}, isize> (panicking.rs:552)
+                 n1: 8388608 0xBFAE50: try<isize, std::rt::lang_start_internal::{closure_env#2}> (panicking.rs:516)
+                  n1: 8388608 0xBFAE50: catch_unwind<std::rt::lang_start_internal::{closure_env#2}, isize> (panic.rs:142)
+                   n1: 8388608 0xBFAE50: std::rt::lang_start_internal (rt.rs:148)
+                    n1: 8388608 0x426A19: std::rt::lang_start (rt.rs:165)
+                     n0: 8388608 0x3EF41D: main (in /home/js/Thesis/LibAFL/fuzzers/interleaving_fuzz/target/debug/interleaving_fuzz)
+ n1: 524608 0x70C3D0: qemu_try_memalign (memalign.c:53)
+  n2: 524608 0x70C500: qemu_memalign (memalign.c:73)
+   n1: 524288 0x708D34: qht_map_create (qht.c:457)
+    n1: 524288 0x709315: qht_init (qht.c:475)
+     n1: 524288 0x694F6B: tcg_init_machine (tcg-all.c:124)
+      n1: 524288 0x6B1F21: qemu_user_init (main.c:854)
+       n1: 524288 0x4487FB: libafl_qemu::emu::Emulator::new (emu.rs:1072)
+        n1: 524288 0x3EDB64: interleaving_fuzz::fuzz (main.rs:132)
+         n1: 524288 0x3ED616: interleaving_fuzz::main (main.rs:116)
+          n1: 524288 0x3C6BCA: core::ops::function::FnOnce::call_once (function.rs:250)
+           n1: 524288 0x3D217D: std::sys_common::backtrace::__rust_begin_short_backtrace (backtrace.rs:155)
+            n1: 524288 0x426A40: std::rt::lang_start::{{closure}} (rt.rs:166)
+             n1: 524288 0xBFAE50: call_once<(), (dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (function.rs:284)
+              n1: 524288 0xBFAE50: do_call<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panicking.rs:552)
+               n1: 524288 0xBFAE50: try<i32, &(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (panicking.rs:516)
+                n1: 524288 0xBFAE50: catch_unwind<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panic.rs:142)
+                 n1: 524288 0xBFAE50: {closure#2} (rt.rs:148)
+                  n1: 524288 0xBFAE50: do_call<std::rt::lang_start_internal::{closure_env#2}, isize> (panicking.rs:552)
+                   n1: 524288 0xBFAE50: try<isize, std::rt::lang_start_internal::{closure_env#2}> (panicking.rs:516)
+                    n1: 524288 0xBFAE50: catch_unwind<std::rt::lang_start_internal::{closure_env#2}, isize> (panic.rs:142)
+                     n1: 524288 0xBFAE50: std::rt::lang_start_internal (rt.rs:148)
+                      n1: 524288 0x426A19: std::rt::lang_start (rt.rs:165)
+                       n0: 524288 0x3EF41D: main (in /home/js/Thesis/LibAFL/fuzzers/interleaving_fuzz/target/debug/interleaving_fuzz)
+   n0: 320 in 2 places, all below massif's threshold (1.00%)
+ n4: 518608 0x4A5F292: g_malloc0 (gmem.c:133)
+  n2: 170328 0x6DA0B6: type_new (object.c:106)
+   n2: 110168 0x6DA261: type_initialize_interface (object.c:274)
+    n1: 108288 0x6DA469: type_initialize (object.c:342)
+     n2: 108288 0x6DA469: type_initialize (object.c:300)
+      n1: 106032 0x6DAE41: object_class_foreach_tramp (object.c:1096)
+       n1: 106032 0x4A4598A: g_hash_table_foreach (ghash.c:2117)
+        n1: 106032 0x6DB527: object_class_foreach (object.c:1118)
+         n1: 106032 0x6B1EFF: qemu_user_init (main.c:851)
+          n1: 106032 0x4487FB: libafl_qemu::emu::Emulator::new (emu.rs:1072)
+           n1: 106032 0x3EDB64: interleaving_fuzz::fuzz (main.rs:132)
+            n1: 106032 0x3ED616: interleaving_fuzz::main (main.rs:116)
+             n1: 106032 0x3C6BCA: core::ops::function::FnOnce::call_once (function.rs:250)
+              n1: 106032 0x3D217D: std::sys_common::backtrace::__rust_begin_short_backtrace (backtrace.rs:155)
+               n1: 106032 0x426A40: std::rt::lang_start::{{closure}} (rt.rs:166)
+                n1: 106032 0xBFAE50: call_once<(), (dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (function.rs:284)
+                 n1: 106032 0xBFAE50: do_call<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panicking.rs:552)
+                  n1: 106032 0xBFAE50: try<i32, &(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (panicking.rs:516)
+                   n1: 106032 0xBFAE50: catch_unwind<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panic.rs:142)
+                    n1: 106032 0xBFAE50: {closure#2} (rt.rs:148)
+                     n1: 106032 0xBFAE50: do_call<std::rt::lang_start_internal::{closure_env#2}, isize> (panicking.rs:552)
+                      n1: 106032 0xBFAE50: try<isize, std::rt::lang_start_internal::{closure_env#2}> (panicking.rs:516)
+                       n1: 106032 0xBFAE50: catch_unwind<std::rt::lang_start_internal::{closure_env#2}, isize> (panic.rs:142)
+                        n1: 106032 0xBFAE50: std::rt::lang_start_internal (rt.rs:148)
+                         n1: 106032 0x426A19: std::rt::lang_start (rt.rs:165)
+                          n0: 106032 0x3EF41D: main (in /home/js/Thesis/LibAFL/fuzzers/interleaving_fuzz/target/debug/interleaving_fuzz)
+      n0: 2256 in 2 places, all below massif's threshold (1.00%)
+    n0: 1880 in 1 place, below massif's threshold (1.00%)
+   n0: 60160 in 3 places, all below massif's threshold (1.00%)
+  n1: 131104 0x69668D: tcg_exec_realizefn (cpu-exec.c:1158)
+   n1: 131104 0x665C78: cpu_exec_realizefn (cpu-target.c:288)
+    n1: 131104 0x616DDC: x86_cpu_realizefn (cpu.c:7308)
+     n1: 131104 0x6D6882: device_set_realized (qdev.c:510)
+      n1: 131104 0x6D9865: property_set_bool (object.c:2305)
+       n1: 131104 0x6DC3C1: object_property_set (object.c:1435)
+        n1: 131104 0x6DF7EE: object_property_set_qobject (qom-qobject.c:28)
+         n1: 131104 0x6DC623: object_property_set_bool (object.c:1504)
+          n1: 131104 0x60D423: cpu_create (cpu-common.c:61)
+           n0: 131104 in 2 places, all below massif's threshold (1.00%)
+  n0: 112024 in 22 places, all below massif's threshold (1.00%)
+  n1: 105152 0x6DA3EB: type_initialize (object.c:325)
+   n1: 105152 0x6DA3EB: type_initialize (object.c:300)
+    n0: 105152 in 4 places, all below massif's threshold (1.00%)
+ n1: 268200 0x4A5E58A: g_malloc (gmem.c:100)
+  n0: 268200 in 35 places, all below massif's threshold (1.00%)
+ n1: 262144 0x67036F: __pth_tcb_alloc (pth_tcb.c:119)
+  n2: 262144 0x66B34F: pth_spawn (pth_lib.c:245)
+   n0: 131072 in 2 places, all below massif's threshold (1.00%)
+   n2: 131072 0x671A38: fibers_spawn (fibers-thread.c:27)
+    n1: 131072 0x6C8DA4: do_fork (syscall.c:6772)
+     n1: 131072 0x6CD299: do_syscall1.isra.0 (syscall.c:11143)
+      n1: 131072 0x6D1E71: do_syscall (syscall.c:14006)
+       n1: 131072 0x6113F7: cpu_loop (cpu_loop.c:263)
+        n1: 131072 0x670F88: fibers_cpu_loop (fibers.c:44)
+         n1: 131072 0x66BA6A: pth_spawn_trampoline (pth_lib.c:216)
+          n0: 131072 0x4BD6BDF: ??? (__start_context.S:66)
+    n0: 0 in 1 place, below massif's threshold (1.00%)
+ n0: 152282 in 75 places, all below massif's threshold (1.00%)
+ n1: 131072 0x98E9F1: alloc_zeroed (alloc.rs:170)
+  n1: 131072 0x98E9F1: alloc::alloc::Global::alloc_impl (alloc.rs:181)
+   n1: 131072 0x98EC4B: <alloc::alloc::Global as core::alloc::Allocator>::allocate_zeroed (alloc.rs:246)
+    n1: 131072 0x98C989: alloc::raw_vec::RawVec<T,A>::allocate_in (raw_vec.rs:200)
+     n1: 131072 0x98E2D2: with_capacity_zeroed_in<u16, alloc::alloc::Global> (raw_vec.rs:153)
+      n1: 131072 0x98E2D2: <T as alloc::vec::spec_from_elem::SpecFromElem>::from_elem (spec_from_elem.rs:25)
+       n1: 131072 0x98BF00: alloc::vec::from_elem (mod.rs:2627)
+        n1: 131072 0x83DCA4: libafl::observers::map::init_count_class_16 (map.rs:62)
+         n1: 131072 0x4000EB: libafl::observers::map::HitcountsMapObserver<M>::new (map.rs:1485)
+          n1: 131072 0x3EE889: interleaving_fuzz::fuzz (main.rs:168)
+           n1: 131072 0x3ED616: interleaving_fuzz::main (main.rs:116)
+            n1: 131072 0x3C6BCA: core::ops::function::FnOnce::call_once (function.rs:250)
+             n1: 131072 0x3D217D: std::sys_common::backtrace::__rust_begin_short_backtrace (backtrace.rs:155)
+              n1: 131072 0x426A40: std::rt::lang_start::{{closure}} (rt.rs:166)
+               n1: 131072 0xBFAE50: call_once<(), (dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (function.rs:284)
+                n1: 131072 0xBFAE50: do_call<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panicking.rs:552)
+                 n1: 131072 0xBFAE50: try<i32, &(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (panicking.rs:516)
+                  n1: 131072 0xBFAE50: catch_unwind<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panic.rs:142)
+                   n1: 131072 0xBFAE50: {closure#2} (rt.rs:148)
+                    n1: 131072 0xBFAE50: do_call<std::rt::lang_start_internal::{closure_env#2}, isize> (panicking.rs:552)
+                     n1: 131072 0xBFAE50: try<isize, std::rt::lang_start_internal::{closure_env#2}> (panicking.rs:516)
+                      n1: 131072 0xBFAE50: catch_unwind<std::rt::lang_start_internal::{closure_env#2}, isize> (panic.rs:142)
+                       n1: 131072 0xBFAE50: std::rt::lang_start_internal (rt.rs:148)
+                        n1: 131072 0x426A19: std::rt::lang_start (rt.rs:165)
+                         n0: 131072 0x3EF41D: main (in /home/js/Thesis/LibAFL/fuzzers/interleaving_fuzz/target/debug/interleaving_fuzz)
+#-----------
+snapshot=22
+#-----------
+time=1506161963
+mem_heap_B=10247250
+mem_heap_extra_B=109270
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=23
+#-----------
+time=1559174765
+mem_heap_B=10248546
+mem_heap_extra_B=109702
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=24
+#-----------
+time=1612183657
+mem_heap_B=10249842
+mem_heap_extra_B=110134
+mem_stacks_B=0
+heap_tree=detailed
+n7: 10249842 (heap allocation functions) malloc/new/new[], --alloc-fns, etc.
+ n1: 8388608 0x3E39BA: libafl_bolts::os::unix_signals::setup_signal_handler (unix_signals.rs:439)
+  n1: 8388608 0x3F038D: libafl::executors::hooks::inprocess::InProcessHooks<S>::new (inprocess.rs:246)
+   n1: 8388608 0x3E1085: libafl::executors::inprocess::inner::GenericInProcessExecutorInner<HT,OT,S>::with_timeout_generic (inner.rs:238)
+    n1: 8388608 0x3F86DF: libafl::executors::inprocess::GenericInProcessExecutor<H,&mut H,(),OT,S>::with_timeout (mod.rs:251)
+     n1: 8388608 0x3FD9FC: libafl_qemu::executor::QemuExecutor<H,OT,QT,S>::new (mod.rs:202)
+      n1: 8388608 0x3EEDFE: interleaving_fuzz::fuzz (main.rs:237)
+       n1: 8388608 0x3ED616: interleaving_fuzz::main (main.rs:116)
+        n1: 8388608 0x3C6BCA: core::ops::function::FnOnce::call_once (function.rs:250)
+         n1: 8388608 0x3D217D: std::sys_common::backtrace::__rust_begin_short_backtrace (backtrace.rs:155)
+          n1: 8388608 0x426A40: std::rt::lang_start::{{closure}} (rt.rs:166)
+           n1: 8388608 0xBFAE50: call_once<(), (dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (function.rs:284)
+            n1: 8388608 0xBFAE50: do_call<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panicking.rs:552)
+             n1: 8388608 0xBFAE50: try<i32, &(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (panicking.rs:516)
+              n1: 8388608 0xBFAE50: catch_unwind<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panic.rs:142)
+               n1: 8388608 0xBFAE50: {closure#2} (rt.rs:148)
+                n1: 8388608 0xBFAE50: do_call<std::rt::lang_start_internal::{closure_env#2}, isize> (panicking.rs:552)
+                 n1: 8388608 0xBFAE50: try<isize, std::rt::lang_start_internal::{closure_env#2}> (panicking.rs:516)
+                  n1: 8388608 0xBFAE50: catch_unwind<std::rt::lang_start_internal::{closure_env#2}, isize> (panic.rs:142)
+                   n1: 8388608 0xBFAE50: std::rt::lang_start_internal (rt.rs:148)
+                    n1: 8388608 0x426A19: std::rt::lang_start (rt.rs:165)
+                     n0: 8388608 0x3EF41D: main (in /home/js/Thesis/LibAFL/fuzzers/interleaving_fuzz/target/debug/interleaving_fuzz)
+ n1: 524608 0x70C3D0: qemu_try_memalign (memalign.c:53)
+  n2: 524608 0x70C500: qemu_memalign (memalign.c:73)
+   n1: 524288 0x708D34: qht_map_create (qht.c:457)
+    n1: 524288 0x709315: qht_init (qht.c:475)
+     n1: 524288 0x694F6B: tcg_init_machine (tcg-all.c:124)
+      n1: 524288 0x6B1F21: qemu_user_init (main.c:854)
+       n1: 524288 0x4487FB: libafl_qemu::emu::Emulator::new (emu.rs:1072)
+        n1: 524288 0x3EDB64: interleaving_fuzz::fuzz (main.rs:132)
+         n1: 524288 0x3ED616: interleaving_fuzz::main (main.rs:116)
+          n1: 524288 0x3C6BCA: core::ops::function::FnOnce::call_once (function.rs:250)
+           n1: 524288 0x3D217D: std::sys_common::backtrace::__rust_begin_short_backtrace (backtrace.rs:155)
+            n1: 524288 0x426A40: std::rt::lang_start::{{closure}} (rt.rs:166)
+             n1: 524288 0xBFAE50: call_once<(), (dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (function.rs:284)
+              n1: 524288 0xBFAE50: do_call<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panicking.rs:552)
+               n1: 524288 0xBFAE50: try<i32, &(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (panicking.rs:516)
+                n1: 524288 0xBFAE50: catch_unwind<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panic.rs:142)
+                 n1: 524288 0xBFAE50: {closure#2} (rt.rs:148)
+                  n1: 524288 0xBFAE50: do_call<std::rt::lang_start_internal::{closure_env#2}, isize> (panicking.rs:552)
+                   n1: 524288 0xBFAE50: try<isize, std::rt::lang_start_internal::{closure_env#2}> (panicking.rs:516)
+                    n1: 524288 0xBFAE50: catch_unwind<std::rt::lang_start_internal::{closure_env#2}, isize> (panic.rs:142)
+                     n1: 524288 0xBFAE50: std::rt::lang_start_internal (rt.rs:148)
+                      n1: 524288 0x426A19: std::rt::lang_start (rt.rs:165)
+                       n0: 524288 0x3EF41D: main (in /home/js/Thesis/LibAFL/fuzzers/interleaving_fuzz/target/debug/interleaving_fuzz)
+   n0: 320 in 2 places, all below massif's threshold (1.00%)
+ n4: 518608 0x4A5F292: g_malloc0 (gmem.c:133)
+  n2: 170328 0x6DA0B6: type_new (object.c:106)
+   n2: 110168 0x6DA261: type_initialize_interface (object.c:274)
+    n1: 108288 0x6DA469: type_initialize (object.c:342)
+     n2: 108288 0x6DA469: type_initialize (object.c:300)
+      n1: 106032 0x6DAE41: object_class_foreach_tramp (object.c:1096)
+       n1: 106032 0x4A4598A: g_hash_table_foreach (ghash.c:2117)
+        n1: 106032 0x6DB527: object_class_foreach (object.c:1118)
+         n1: 106032 0x6B1EFF: qemu_user_init (main.c:851)
+          n1: 106032 0x4487FB: libafl_qemu::emu::Emulator::new (emu.rs:1072)
+           n1: 106032 0x3EDB64: interleaving_fuzz::fuzz (main.rs:132)
+            n1: 106032 0x3ED616: interleaving_fuzz::main (main.rs:116)
+             n1: 106032 0x3C6BCA: core::ops::function::FnOnce::call_once (function.rs:250)
+              n1: 106032 0x3D217D: std::sys_common::backtrace::__rust_begin_short_backtrace (backtrace.rs:155)
+               n1: 106032 0x426A40: std::rt::lang_start::{{closure}} (rt.rs:166)
+                n1: 106032 0xBFAE50: call_once<(), (dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (function.rs:284)
+                 n1: 106032 0xBFAE50: do_call<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panicking.rs:552)
+                  n1: 106032 0xBFAE50: try<i32, &(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (panicking.rs:516)
+                   n1: 106032 0xBFAE50: catch_unwind<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panic.rs:142)
+                    n1: 106032 0xBFAE50: {closure#2} (rt.rs:148)
+                     n1: 106032 0xBFAE50: do_call<std::rt::lang_start_internal::{closure_env#2}, isize> (panicking.rs:552)
+                      n1: 106032 0xBFAE50: try<isize, std::rt::lang_start_internal::{closure_env#2}> (panicking.rs:516)
+                       n1: 106032 0xBFAE50: catch_unwind<std::rt::lang_start_internal::{closure_env#2}, isize> (panic.rs:142)
+                        n1: 106032 0xBFAE50: std::rt::lang_start_internal (rt.rs:148)
+                         n1: 106032 0x426A19: std::rt::lang_start (rt.rs:165)
+                          n0: 106032 0x3EF41D: main (in /home/js/Thesis/LibAFL/fuzzers/interleaving_fuzz/target/debug/interleaving_fuzz)
+      n0: 2256 in 2 places, all below massif's threshold (1.00%)
+    n0: 1880 in 1 place, below massif's threshold (1.00%)
+   n0: 60160 in 3 places, all below massif's threshold (1.00%)
+  n1: 131104 0x69668D: tcg_exec_realizefn (cpu-exec.c:1158)
+   n1: 131104 0x665C78: cpu_exec_realizefn (cpu-target.c:288)
+    n1: 131104 0x616DDC: x86_cpu_realizefn (cpu.c:7308)
+     n1: 131104 0x6D6882: device_set_realized (qdev.c:510)
+      n1: 131104 0x6D9865: property_set_bool (object.c:2305)
+       n1: 131104 0x6DC3C1: object_property_set (object.c:1435)
+        n1: 131104 0x6DF7EE: object_property_set_qobject (qom-qobject.c:28)
+         n1: 131104 0x6DC623: object_property_set_bool (object.c:1504)
+          n1: 131104 0x60D423: cpu_create (cpu-common.c:61)
+           n0: 131104 in 2 places, all below massif's threshold (1.00%)
+  n0: 112024 in 22 places, all below massif's threshold (1.00%)
+  n1: 105152 0x6DA3EB: type_initialize (object.c:325)
+   n1: 105152 0x6DA3EB: type_initialize (object.c:300)
+    n0: 105152 in 4 places, all below massif's threshold (1.00%)
+ n1: 270360 0x4A5E58A: g_malloc (gmem.c:100)
+  n0: 270360 in 35 places, all below massif's threshold (1.00%)
+ n1: 262144 0x67036F: __pth_tcb_alloc (pth_tcb.c:119)
+  n2: 262144 0x66B34F: pth_spawn (pth_lib.c:245)
+   n0: 131072 in 2 places, all below massif's threshold (1.00%)
+   n2: 131072 0x671A38: fibers_spawn (fibers-thread.c:27)
+    n1: 131072 0x6C8DA4: do_fork (syscall.c:6772)
+     n1: 131072 0x6CD299: do_syscall1.isra.0 (syscall.c:11143)
+      n1: 131072 0x6D1E71: do_syscall (syscall.c:14006)
+       n1: 131072 0x6113F7: cpu_loop (cpu_loop.c:263)
+        n1: 131072 0x670F88: fibers_cpu_loop (fibers.c:44)
+         n1: 131072 0x66BA6A: pth_spawn_trampoline (pth_lib.c:216)
+          n0: 131072 0x4BD6BDF: ??? (__start_context.S:66)
+    n0: 0 in 1 place, below massif's threshold (1.00%)
+ n0: 154442 in 75 places, all below massif's threshold (1.00%)
+ n1: 131072 0x98E9F1: alloc_zeroed (alloc.rs:170)
+  n1: 131072 0x98E9F1: alloc::alloc::Global::alloc_impl (alloc.rs:181)
+   n1: 131072 0x98EC4B: <alloc::alloc::Global as core::alloc::Allocator>::allocate_zeroed (alloc.rs:246)
+    n1: 131072 0x98C989: alloc::raw_vec::RawVec<T,A>::allocate_in (raw_vec.rs:200)
+     n1: 131072 0x98E2D2: with_capacity_zeroed_in<u16, alloc::alloc::Global> (raw_vec.rs:153)
+      n1: 131072 0x98E2D2: <T as alloc::vec::spec_from_elem::SpecFromElem>::from_elem (spec_from_elem.rs:25)
+       n1: 131072 0x98BF00: alloc::vec::from_elem (mod.rs:2627)
+        n1: 131072 0x83DCA4: libafl::observers::map::init_count_class_16 (map.rs:62)
+         n1: 131072 0x4000EB: libafl::observers::map::HitcountsMapObserver<M>::new (map.rs:1485)
+          n1: 131072 0x3EE889: interleaving_fuzz::fuzz (main.rs:168)
+           n1: 131072 0x3ED616: interleaving_fuzz::main (main.rs:116)
+            n1: 131072 0x3C6BCA: core::ops::function::FnOnce::call_once (function.rs:250)
+             n1: 131072 0x3D217D: std::sys_common::backtrace::__rust_begin_short_backtrace (backtrace.rs:155)
+              n1: 131072 0x426A40: std::rt::lang_start::{{closure}} (rt.rs:166)
+               n1: 131072 0xBFAE50: call_once<(), (dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (function.rs:284)
+                n1: 131072 0xBFAE50: do_call<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panicking.rs:552)
+                 n1: 131072 0xBFAE50: try<i32, &(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (panicking.rs:516)
+                  n1: 131072 0xBFAE50: catch_unwind<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panic.rs:142)
+                   n1: 131072 0xBFAE50: {closure#2} (rt.rs:148)
+                    n1: 131072 0xBFAE50: do_call<std::rt::lang_start_internal::{closure_env#2}, isize> (panicking.rs:552)
+                     n1: 131072 0xBFAE50: try<isize, std::rt::lang_start_internal::{closure_env#2}> (panicking.rs:516)
+                      n1: 131072 0xBFAE50: catch_unwind<std::rt::lang_start_internal::{closure_env#2}, isize> (panic.rs:142)
+                       n1: 131072 0xBFAE50: std::rt::lang_start_internal (rt.rs:148)
+                        n1: 131072 0x426A19: std::rt::lang_start (rt.rs:165)
+                         n0: 131072 0x3EF41D: main (in /home/js/Thesis/LibAFL/fuzzers/interleaving_fuzz/target/debug/interleaving_fuzz)
+#-----------
+snapshot=25
+#-----------
+time=1700545822
+mem_heap_B=10252002
+mem_heap_extra_B=110854
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=26
+#-----------
+time=1771220457
+mem_heap_B=10253730
+mem_heap_extra_B=111430
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=27
+#-----------
+time=1859577642
+mem_heap_B=10255890
+mem_heap_extra_B=112150
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=28
+#-----------
+time=1951356150
+mem_heap_B=10258050
+mem_heap_extra_B=112870
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=29
+#-----------
+time=2043139769
+mem_heap_B=10260210
+mem_heap_extra_B=113590
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=30
+#-----------
+time=2081907182
+mem_heap_B=10261074
+mem_heap_extra_B=113878
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=31
+#-----------
+time=2152598801
+mem_heap_B=10262802
+mem_heap_extra_B=114454
+mem_stacks_B=0
+heap_tree=detailed
+n7: 10262802 (heap allocation functions) malloc/new/new[], --alloc-fns, etc.
+ n1: 8388608 0x3E39BA: libafl_bolts::os::unix_signals::setup_signal_handler (unix_signals.rs:439)
+  n1: 8388608 0x3F038D: libafl::executors::hooks::inprocess::InProcessHooks<S>::new (inprocess.rs:246)
+   n1: 8388608 0x3E1085: libafl::executors::inprocess::inner::GenericInProcessExecutorInner<HT,OT,S>::with_timeout_generic (inner.rs:238)
+    n1: 8388608 0x3F86DF: libafl::executors::inprocess::GenericInProcessExecutor<H,&mut H,(),OT,S>::with_timeout (mod.rs:251)
+     n1: 8388608 0x3FD9FC: libafl_qemu::executor::QemuExecutor<H,OT,QT,S>::new (mod.rs:202)
+      n1: 8388608 0x3EEDFE: interleaving_fuzz::fuzz (main.rs:237)
+       n1: 8388608 0x3ED616: interleaving_fuzz::main (main.rs:116)
+        n1: 8388608 0x3C6BCA: core::ops::function::FnOnce::call_once (function.rs:250)
+         n1: 8388608 0x3D217D: std::sys_common::backtrace::__rust_begin_short_backtrace (backtrace.rs:155)
+          n1: 8388608 0x426A40: std::rt::lang_start::{{closure}} (rt.rs:166)
+           n1: 8388608 0xBFAE50: call_once<(), (dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (function.rs:284)
+            n1: 8388608 0xBFAE50: do_call<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panicking.rs:552)
+             n1: 8388608 0xBFAE50: try<i32, &(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (panicking.rs:516)
+              n1: 8388608 0xBFAE50: catch_unwind<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panic.rs:142)
+               n1: 8388608 0xBFAE50: {closure#2} (rt.rs:148)
+                n1: 8388608 0xBFAE50: do_call<std::rt::lang_start_internal::{closure_env#2}, isize> (panicking.rs:552)
+                 n1: 8388608 0xBFAE50: try<isize, std::rt::lang_start_internal::{closure_env#2}> (panicking.rs:516)
+                  n1: 8388608 0xBFAE50: catch_unwind<std::rt::lang_start_internal::{closure_env#2}, isize> (panic.rs:142)
+                   n1: 8388608 0xBFAE50: std::rt::lang_start_internal (rt.rs:148)
+                    n1: 8388608 0x426A19: std::rt::lang_start (rt.rs:165)
+                     n0: 8388608 0x3EF41D: main (in /home/js/Thesis/LibAFL/fuzzers/interleaving_fuzz/target/debug/interleaving_fuzz)
+ n1: 524608 0x70C3D0: qemu_try_memalign (memalign.c:53)
+  n2: 524608 0x70C500: qemu_memalign (memalign.c:73)
+   n1: 524288 0x708D34: qht_map_create (qht.c:457)
+    n1: 524288 0x709315: qht_init (qht.c:475)
+     n1: 524288 0x694F6B: tcg_init_machine (tcg-all.c:124)
+      n1: 524288 0x6B1F21: qemu_user_init (main.c:854)
+       n1: 524288 0x4487FB: libafl_qemu::emu::Emulator::new (emu.rs:1072)
+        n1: 524288 0x3EDB64: interleaving_fuzz::fuzz (main.rs:132)
+         n1: 524288 0x3ED616: interleaving_fuzz::main (main.rs:116)
+          n1: 524288 0x3C6BCA: core::ops::function::FnOnce::call_once (function.rs:250)
+           n1: 524288 0x3D217D: std::sys_common::backtrace::__rust_begin_short_backtrace (backtrace.rs:155)
+            n1: 524288 0x426A40: std::rt::lang_start::{{closure}} (rt.rs:166)
+             n1: 524288 0xBFAE50: call_once<(), (dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (function.rs:284)
+              n1: 524288 0xBFAE50: do_call<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panicking.rs:552)
+               n1: 524288 0xBFAE50: try<i32, &(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (panicking.rs:516)
+                n1: 524288 0xBFAE50: catch_unwind<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panic.rs:142)
+                 n1: 524288 0xBFAE50: {closure#2} (rt.rs:148)
+                  n1: 524288 0xBFAE50: do_call<std::rt::lang_start_internal::{closure_env#2}, isize> (panicking.rs:552)
+                   n1: 524288 0xBFAE50: try<isize, std::rt::lang_start_internal::{closure_env#2}> (panicking.rs:516)
+                    n1: 524288 0xBFAE50: catch_unwind<std::rt::lang_start_internal::{closure_env#2}, isize> (panic.rs:142)
+                     n1: 524288 0xBFAE50: std::rt::lang_start_internal (rt.rs:148)
+                      n1: 524288 0x426A19: std::rt::lang_start (rt.rs:165)
+                       n0: 524288 0x3EF41D: main (in /home/js/Thesis/LibAFL/fuzzers/interleaving_fuzz/target/debug/interleaving_fuzz)
+   n0: 320 in 2 places, all below massif's threshold (1.00%)
+ n4: 518608 0x4A5F292: g_malloc0 (gmem.c:133)
+  n2: 170328 0x6DA0B6: type_new (object.c:106)
+   n2: 110168 0x6DA261: type_initialize_interface (object.c:274)
+    n1: 108288 0x6DA469: type_initialize (object.c:342)
+     n2: 108288 0x6DA469: type_initialize (object.c:300)
+      n1: 106032 0x6DAE41: object_class_foreach_tramp (object.c:1096)
+       n1: 106032 0x4A4598A: g_hash_table_foreach (ghash.c:2117)
+        n1: 106032 0x6DB527: object_class_foreach (object.c:1118)
+         n1: 106032 0x6B1EFF: qemu_user_init (main.c:851)
+          n1: 106032 0x4487FB: libafl_qemu::emu::Emulator::new (emu.rs:1072)
+           n1: 106032 0x3EDB64: interleaving_fuzz::fuzz (main.rs:132)
+            n1: 106032 0x3ED616: interleaving_fuzz::main (main.rs:116)
+             n1: 106032 0x3C6BCA: core::ops::function::FnOnce::call_once (function.rs:250)
+              n1: 106032 0x3D217D: std::sys_common::backtrace::__rust_begin_short_backtrace (backtrace.rs:155)
+               n1: 106032 0x426A40: std::rt::lang_start::{{closure}} (rt.rs:166)
+                n1: 106032 0xBFAE50: call_once<(), (dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (function.rs:284)
+                 n1: 106032 0xBFAE50: do_call<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panicking.rs:552)
+                  n1: 106032 0xBFAE50: try<i32, &(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (panicking.rs:516)
+                   n1: 106032 0xBFAE50: catch_unwind<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panic.rs:142)
+                    n1: 106032 0xBFAE50: {closure#2} (rt.rs:148)
+                     n1: 106032 0xBFAE50: do_call<std::rt::lang_start_internal::{closure_env#2}, isize> (panicking.rs:552)
+                      n1: 106032 0xBFAE50: try<isize, std::rt::lang_start_internal::{closure_env#2}> (panicking.rs:516)
+                       n1: 106032 0xBFAE50: catch_unwind<std::rt::lang_start_internal::{closure_env#2}, isize> (panic.rs:142)
+                        n1: 106032 0xBFAE50: std::rt::lang_start_internal (rt.rs:148)
+                         n1: 106032 0x426A19: std::rt::lang_start (rt.rs:165)
+                          n0: 106032 0x3EF41D: main (in /home/js/Thesis/LibAFL/fuzzers/interleaving_fuzz/target/debug/interleaving_fuzz)
+      n0: 2256 in 2 places, all below massif's threshold (1.00%)
+    n0: 1880 in 1 place, below massif's threshold (1.00%)
+   n0: 60160 in 3 places, all below massif's threshold (1.00%)
+  n1: 131104 0x69668D: tcg_exec_realizefn (cpu-exec.c:1158)
+   n1: 131104 0x665C78: cpu_exec_realizefn (cpu-target.c:288)
+    n1: 131104 0x616DDC: x86_cpu_realizefn (cpu.c:7308)
+     n1: 131104 0x6D6882: device_set_realized (qdev.c:510)
+      n1: 131104 0x6D9865: property_set_bool (object.c:2305)
+       n1: 131104 0x6DC3C1: object_property_set (object.c:1435)
+        n1: 131104 0x6DF7EE: object_property_set_qobject (qom-qobject.c:28)
+         n1: 131104 0x6DC623: object_property_set_bool (object.c:1504)
+          n1: 131104 0x60D423: cpu_create (cpu-common.c:61)
+           n0: 131104 in 2 places, all below massif's threshold (1.00%)
+  n0: 112024 in 22 places, all below massif's threshold (1.00%)
+  n1: 105152 0x6DA3EB: type_initialize (object.c:325)
+   n1: 105152 0x6DA3EB: type_initialize (object.c:300)
+    n0: 105152 in 4 places, all below massif's threshold (1.00%)
+ n1: 276840 0x4A5E58A: g_malloc (gmem.c:100)
+  n0: 276840 in 35 places, all below massif's threshold (1.00%)
+ n1: 262144 0x67036F: __pth_tcb_alloc (pth_tcb.c:119)
+  n2: 262144 0x66B34F: pth_spawn (pth_lib.c:245)
+   n0: 131072 in 2 places, all below massif's threshold (1.00%)
+   n2: 131072 0x671A38: fibers_spawn (fibers-thread.c:27)
+    n1: 131072 0x6C8DA4: do_fork (syscall.c:6772)
+     n1: 131072 0x6CD299: do_syscall1.isra.0 (syscall.c:11143)
+      n1: 131072 0x6D1E71: do_syscall (syscall.c:14006)
+       n1: 131072 0x6113F7: cpu_loop (cpu_loop.c:263)
+        n1: 131072 0x670F88: fibers_cpu_loop (fibers.c:44)
+         n1: 131072 0x66BA6A: pth_spawn_trampoline (pth_lib.c:216)
+          n0: 131072 0x4BD6BDF: ??? (__start_context.S:66)
+    n0: 0 in 1 place, below massif's threshold (1.00%)
+ n0: 160922 in 75 places, all below massif's threshold (1.00%)
+ n1: 131072 0x98E9F1: alloc_zeroed (alloc.rs:170)
+  n1: 131072 0x98E9F1: alloc::alloc::Global::alloc_impl (alloc.rs:181)
+   n1: 131072 0x98EC4B: <alloc::alloc::Global as core::alloc::Allocator>::allocate_zeroed (alloc.rs:246)
+    n1: 131072 0x98C989: alloc::raw_vec::RawVec<T,A>::allocate_in (raw_vec.rs:200)
+     n1: 131072 0x98E2D2: with_capacity_zeroed_in<u16, alloc::alloc::Global> (raw_vec.rs:153)
+      n1: 131072 0x98E2D2: <T as alloc::vec::spec_from_elem::SpecFromElem>::from_elem (spec_from_elem.rs:25)
+       n1: 131072 0x98BF00: alloc::vec::from_elem (mod.rs:2627)
+        n1: 131072 0x83DCA4: libafl::observers::map::init_count_class_16 (map.rs:62)
+         n1: 131072 0x4000EB: libafl::observers::map::HitcountsMapObserver<M>::new (map.rs:1485)
+          n1: 131072 0x3EE889: interleaving_fuzz::fuzz (main.rs:168)
+           n1: 131072 0x3ED616: interleaving_fuzz::main (main.rs:116)
+            n1: 131072 0x3C6BCA: core::ops::function::FnOnce::call_once (function.rs:250)
+             n1: 131072 0x3D217D: std::sys_common::backtrace::__rust_begin_short_backtrace (backtrace.rs:155)
+              n1: 131072 0x426A40: std::rt::lang_start::{{closure}} (rt.rs:166)
+               n1: 131072 0xBFAE50: call_once<(), (dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (function.rs:284)
+                n1: 131072 0xBFAE50: do_call<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panicking.rs:552)
+                 n1: 131072 0xBFAE50: try<i32, &(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (panicking.rs:516)
+                  n1: 131072 0xBFAE50: catch_unwind<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panic.rs:142)
+                   n1: 131072 0xBFAE50: {closure#2} (rt.rs:148)
+                    n1: 131072 0xBFAE50: do_call<std::rt::lang_start_internal::{closure_env#2}, isize> (panicking.rs:552)
+                     n1: 131072 0xBFAE50: try<isize, std::rt::lang_start_internal::{closure_env#2}> (panicking.rs:516)
+                      n1: 131072 0xBFAE50: catch_unwind<std::rt::lang_start_internal::{closure_env#2}, isize> (panic.rs:142)
+                       n1: 131072 0xBFAE50: std::rt::lang_start_internal (rt.rs:148)
+                        n1: 131072 0x426A19: std::rt::lang_start (rt.rs:165)
+                         n0: 131072 0x3EF41D: main (in /home/js/Thesis/LibAFL/fuzzers/interleaving_fuzz/target/debug/interleaving_fuzz)
+#-----------
+snapshot=32
+#-----------
+time=2205606887
+mem_heap_B=10264098
+mem_heap_extra_B=114886
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=33
+#-----------
+time=2258614308
+mem_heap_B=10265394
+mem_heap_extra_B=115318
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=34
+#-----------
+time=2352900797
+mem_heap_B=10267702
+mem_heap_extra_B=115674
+mem_stacks_B=0
+heap_tree=detailed
+n7: 10267702 (heap allocation functions) malloc/new/new[], --alloc-fns, etc.
+ n1: 8388608 0x3E39BA: libafl_bolts::os::unix_signals::setup_signal_handler (unix_signals.rs:439)
+  n1: 8388608 0x3F038D: libafl::executors::hooks::inprocess::InProcessHooks<S>::new (inprocess.rs:246)
+   n1: 8388608 0x3E1085: libafl::executors::inprocess::inner::GenericInProcessExecutorInner<HT,OT,S>::with_timeout_generic (inner.rs:238)
+    n1: 8388608 0x3F86DF: libafl::executors::inprocess::GenericInProcessExecutor<H,&mut H,(),OT,S>::with_timeout (mod.rs:251)
+     n1: 8388608 0x3FD9FC: libafl_qemu::executor::QemuExecutor<H,OT,QT,S>::new (mod.rs:202)
+      n1: 8388608 0x3EEDFE: interleaving_fuzz::fuzz (main.rs:237)
+       n1: 8388608 0x3ED616: interleaving_fuzz::main (main.rs:116)
+        n1: 8388608 0x3C6BCA: core::ops::function::FnOnce::call_once (function.rs:250)
+         n1: 8388608 0x3D217D: std::sys_common::backtrace::__rust_begin_short_backtrace (backtrace.rs:155)
+          n1: 8388608 0x426A40: std::rt::lang_start::{{closure}} (rt.rs:166)
+           n1: 8388608 0xBFAE50: call_once<(), (dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (function.rs:284)
+            n1: 8388608 0xBFAE50: do_call<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panicking.rs:552)
+             n1: 8388608 0xBFAE50: try<i32, &(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (panicking.rs:516)
+              n1: 8388608 0xBFAE50: catch_unwind<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panic.rs:142)
+               n1: 8388608 0xBFAE50: {closure#2} (rt.rs:148)
+                n1: 8388608 0xBFAE50: do_call<std::rt::lang_start_internal::{closure_env#2}, isize> (panicking.rs:552)
+                 n1: 8388608 0xBFAE50: try<isize, std::rt::lang_start_internal::{closure_env#2}> (panicking.rs:516)
+                  n1: 8388608 0xBFAE50: catch_unwind<std::rt::lang_start_internal::{closure_env#2}, isize> (panic.rs:142)
+                   n1: 8388608 0xBFAE50: std::rt::lang_start_internal (rt.rs:148)
+                    n1: 8388608 0x426A19: std::rt::lang_start (rt.rs:165)
+                     n0: 8388608 0x3EF41D: main (in /home/js/Thesis/LibAFL/fuzzers/interleaving_fuzz/target/debug/interleaving_fuzz)
+ n1: 524608 0x70C3D0: qemu_try_memalign (memalign.c:53)
+  n2: 524608 0x70C500: qemu_memalign (memalign.c:73)
+   n1: 524288 0x708D34: qht_map_create (qht.c:457)
+    n1: 524288 0x709315: qht_init (qht.c:475)
+     n1: 524288 0x694F6B: tcg_init_machine (tcg-all.c:124)
+      n1: 524288 0x6B1F21: qemu_user_init (main.c:854)
+       n1: 524288 0x4487FB: libafl_qemu::emu::Emulator::new (emu.rs:1072)
+        n1: 524288 0x3EDB64: interleaving_fuzz::fuzz (main.rs:132)
+         n1: 524288 0x3ED616: interleaving_fuzz::main (main.rs:116)
+          n1: 524288 0x3C6BCA: core::ops::function::FnOnce::call_once (function.rs:250)
+           n1: 524288 0x3D217D: std::sys_common::backtrace::__rust_begin_short_backtrace (backtrace.rs:155)
+            n1: 524288 0x426A40: std::rt::lang_start::{{closure}} (rt.rs:166)
+             n1: 524288 0xBFAE50: call_once<(), (dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (function.rs:284)
+              n1: 524288 0xBFAE50: do_call<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panicking.rs:552)
+               n1: 524288 0xBFAE50: try<i32, &(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (panicking.rs:516)
+                n1: 524288 0xBFAE50: catch_unwind<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panic.rs:142)
+                 n1: 524288 0xBFAE50: {closure#2} (rt.rs:148)
+                  n1: 524288 0xBFAE50: do_call<std::rt::lang_start_internal::{closure_env#2}, isize> (panicking.rs:552)
+                   n1: 524288 0xBFAE50: try<isize, std::rt::lang_start_internal::{closure_env#2}> (panicking.rs:516)
+                    n1: 524288 0xBFAE50: catch_unwind<std::rt::lang_start_internal::{closure_env#2}, isize> (panic.rs:142)
+                     n1: 524288 0xBFAE50: std::rt::lang_start_internal (rt.rs:148)
+                      n1: 524288 0x426A19: std::rt::lang_start (rt.rs:165)
+                       n0: 524288 0x3EF41D: main (in /home/js/Thesis/LibAFL/fuzzers/interleaving_fuzz/target/debug/interleaving_fuzz)
+   n0: 320 in 2 places, all below massif's threshold (1.00%)
+ n4: 518528 0x4A5F292: g_malloc0 (gmem.c:133)
+  n2: 170328 0x6DA0B6: type_new (object.c:106)
+   n2: 110168 0x6DA261: type_initialize_interface (object.c:274)
+    n1: 108288 0x6DA469: type_initialize (object.c:342)
+     n2: 108288 0x6DA469: type_initialize (object.c:300)
+      n1: 106032 0x6DAE41: object_class_foreach_tramp (object.c:1096)
+       n1: 106032 0x4A4598A: g_hash_table_foreach (ghash.c:2117)
+        n1: 106032 0x6DB527: object_class_foreach (object.c:1118)
+         n1: 106032 0x6B1EFF: qemu_user_init (main.c:851)
+          n1: 106032 0x4487FB: libafl_qemu::emu::Emulator::new (emu.rs:1072)
+           n1: 106032 0x3EDB64: interleaving_fuzz::fuzz (main.rs:132)
+            n1: 106032 0x3ED616: interleaving_fuzz::main (main.rs:116)
+             n1: 106032 0x3C6BCA: core::ops::function::FnOnce::call_once (function.rs:250)
+              n1: 106032 0x3D217D: std::sys_common::backtrace::__rust_begin_short_backtrace (backtrace.rs:155)
+               n1: 106032 0x426A40: std::rt::lang_start::{{closure}} (rt.rs:166)
+                n1: 106032 0xBFAE50: call_once<(), (dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (function.rs:284)
+                 n1: 106032 0xBFAE50: do_call<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panicking.rs:552)
+                  n1: 106032 0xBFAE50: try<i32, &(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (panicking.rs:516)
+                   n1: 106032 0xBFAE50: catch_unwind<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panic.rs:142)
+                    n1: 106032 0xBFAE50: {closure#2} (rt.rs:148)
+                     n1: 106032 0xBFAE50: do_call<std::rt::lang_start_internal::{closure_env#2}, isize> (panicking.rs:552)
+                      n1: 106032 0xBFAE50: try<isize, std::rt::lang_start_internal::{closure_env#2}> (panicking.rs:516)
+                       n1: 106032 0xBFAE50: catch_unwind<std::rt::lang_start_internal::{closure_env#2}, isize> (panic.rs:142)
+                        n1: 106032 0xBFAE50: std::rt::lang_start_internal (rt.rs:148)
+                         n1: 106032 0x426A19: std::rt::lang_start (rt.rs:165)
+                          n0: 106032 0x3EF41D: main (in /home/js/Thesis/LibAFL/fuzzers/interleaving_fuzz/target/debug/interleaving_fuzz)
+      n0: 2256 in 2 places, all below massif's threshold (1.00%)
+    n0: 1880 in 1 place, below massif's threshold (1.00%)
+   n0: 60160 in 3 places, all below massif's threshold (1.00%)
+  n1: 131104 0x69668D: tcg_exec_realizefn (cpu-exec.c:1158)
+   n1: 131104 0x665C78: cpu_exec_realizefn (cpu-target.c:288)
+    n1: 131104 0x616DDC: x86_cpu_realizefn (cpu.c:7308)
+     n1: 131104 0x6D6882: device_set_realized (qdev.c:510)
+      n1: 131104 0x6D9865: property_set_bool (object.c:2305)
+       n1: 131104 0x6DC3C1: object_property_set (object.c:1435)
+        n1: 131104 0x6DF7EE: object_property_set_qobject (qom-qobject.c:28)
+         n1: 131104 0x6DC623: object_property_set_bool (object.c:1504)
+          n1: 131104 0x60D423: cpu_create (cpu-common.c:61)
+           n0: 131104 in 2 places, all below massif's threshold (1.00%)
+  n0: 111944 in 22 places, all below massif's threshold (1.00%)
+  n1: 105152 0x6DA3EB: type_initialize (object.c:325)
+   n1: 105152 0x6DA3EB: type_initialize (object.c:300)
+    n0: 105152 in 4 places, all below massif's threshold (1.00%)
+ n1: 278988 0x4A5E58A: g_malloc (gmem.c:100)
+  n0: 278988 in 35 places, all below massif's threshold (1.00%)
+ n1: 262144 0x67036F: __pth_tcb_alloc (pth_tcb.c:119)
+  n2: 262144 0x66B34F: pth_spawn (pth_lib.c:245)
+   n0: 131072 in 2 places, all below massif's threshold (1.00%)
+   n2: 131072 0x671A38: fibers_spawn (fibers-thread.c:27)
+    n1: 131072 0x6C8DA4: do_fork (syscall.c:6772)
+     n1: 131072 0x6CD299: do_syscall1.isra.0 (syscall.c:11143)
+      n1: 131072 0x6D1E71: do_syscall (syscall.c:14006)
+       n1: 131072 0x6113F7: cpu_loop (cpu_loop.c:263)
+        n1: 131072 0x670F88: fibers_cpu_loop (fibers.c:44)
+         n1: 131072 0x66BA6A: pth_spawn_trampoline (pth_lib.c:216)
+          n0: 131072 0x4BD6BDF: ??? (__start_context.S:66)
+    n0: 0 in 1 place, below massif's threshold (1.00%)
+ n0: 163754 in 75 places, all below massif's threshold (1.00%)
+ n1: 131072 0x98E9F1: alloc_zeroed (alloc.rs:170)
+  n1: 131072 0x98E9F1: alloc::alloc::Global::alloc_impl (alloc.rs:181)
+   n1: 131072 0x98EC4B: <alloc::alloc::Global as core::alloc::Allocator>::allocate_zeroed (alloc.rs:246)
+    n1: 131072 0x98C989: alloc::raw_vec::RawVec<T,A>::allocate_in (raw_vec.rs:200)
+     n1: 131072 0x98E2D2: with_capacity_zeroed_in<u16, alloc::alloc::Global> (raw_vec.rs:153)
+      n1: 131072 0x98E2D2: <T as alloc::vec::spec_from_elem::SpecFromElem>::from_elem (spec_from_elem.rs:25)
+       n1: 131072 0x98BF00: alloc::vec::from_elem (mod.rs:2627)
+        n1: 131072 0x83DCA4: libafl::observers::map::init_count_class_16 (map.rs:62)
+         n1: 131072 0x4000EB: libafl::observers::map::HitcountsMapObserver<M>::new (map.rs:1485)
+          n1: 131072 0x3EE889: interleaving_fuzz::fuzz (main.rs:168)
+           n1: 131072 0x3ED616: interleaving_fuzz::main (main.rs:116)
+            n1: 131072 0x3C6BCA: core::ops::function::FnOnce::call_once (function.rs:250)
+             n1: 131072 0x3D217D: std::sys_common::backtrace::__rust_begin_short_backtrace (backtrace.rs:155)
+              n1: 131072 0x426A40: std::rt::lang_start::{{closure}} (rt.rs:166)
+               n1: 131072 0xBFAE50: call_once<(), (dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (function.rs:284)
+                n1: 131072 0xBFAE50: do_call<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panicking.rs:552)
+                 n1: 131072 0xBFAE50: try<i32, &(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (panicking.rs:516)
+                  n1: 131072 0xBFAE50: catch_unwind<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panic.rs:142)
+                   n1: 131072 0xBFAE50: {closure#2} (rt.rs:148)
+                    n1: 131072 0xBFAE50: do_call<std::rt::lang_start_internal::{closure_env#2}, isize> (panicking.rs:552)
+                     n1: 131072 0xBFAE50: try<isize, std::rt::lang_start_internal::{closure_env#2}> (panicking.rs:516)
+                      n1: 131072 0xBFAE50: catch_unwind<std::rt::lang_start_internal::{closure_env#2}, isize> (panic.rs:142)
+                       n1: 131072 0xBFAE50: std::rt::lang_start_internal (rt.rs:148)
+                        n1: 131072 0x426A19: std::rt::lang_start (rt.rs:165)
+                         n0: 131072 0x3EF41D: main (in /home/js/Thesis/LibAFL/fuzzers/interleaving_fuzz/target/debug/interleaving_fuzz)
+#-----------
+snapshot=35
+#-----------
+time=2447197925
+mem_heap_B=10269736
+mem_heap_extra_B=116184
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=36
+#-----------
+time=2494351429
+mem_heap_B=10270924
+mem_heap_extra_B=116476
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=37
+#-----------
+time=2576696226
+mem_heap_B=10338722
+mem_heap_extra_B=117918
+mem_stacks_B=0
+heap_tree=peak
+n7: 10338722 (heap allocation functions) malloc/new/new[], --alloc-fns, etc.
+ n1: 8388608 0x3E39BA: libafl_bolts::os::unix_signals::setup_signal_handler (unix_signals.rs:439)
+  n1: 8388608 0x3F038D: libafl::executors::hooks::inprocess::InProcessHooks<S>::new (inprocess.rs:246)
+   n1: 8388608 0x3E1085: libafl::executors::inprocess::inner::GenericInProcessExecutorInner<HT,OT,S>::with_timeout_generic (inner.rs:238)
+    n1: 8388608 0x3F86DF: libafl::executors::inprocess::GenericInProcessExecutor<H,&mut H,(),OT,S>::with_timeout (mod.rs:251)
+     n1: 8388608 0x3FD9FC: libafl_qemu::executor::QemuExecutor<H,OT,QT,S>::new (mod.rs:202)
+      n1: 8388608 0x3EEDFE: interleaving_fuzz::fuzz (main.rs:237)
+       n1: 8388608 0x3ED616: interleaving_fuzz::main (main.rs:116)
+        n1: 8388608 0x3C6BCA: core::ops::function::FnOnce::call_once (function.rs:250)
+         n1: 8388608 0x3D217D: std::sys_common::backtrace::__rust_begin_short_backtrace (backtrace.rs:155)
+          n1: 8388608 0x426A40: std::rt::lang_start::{{closure}} (rt.rs:166)
+           n1: 8388608 0xBFAE50: call_once<(), (dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (function.rs:284)
+            n1: 8388608 0xBFAE50: do_call<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panicking.rs:552)
+             n1: 8388608 0xBFAE50: try<i32, &(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (panicking.rs:516)
+              n1: 8388608 0xBFAE50: catch_unwind<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panic.rs:142)
+               n1: 8388608 0xBFAE50: {closure#2} (rt.rs:148)
+                n1: 8388608 0xBFAE50: do_call<std::rt::lang_start_internal::{closure_env#2}, isize> (panicking.rs:552)
+                 n1: 8388608 0xBFAE50: try<isize, std::rt::lang_start_internal::{closure_env#2}> (panicking.rs:516)
+                  n1: 8388608 0xBFAE50: catch_unwind<std::rt::lang_start_internal::{closure_env#2}, isize> (panic.rs:142)
+                   n1: 8388608 0xBFAE50: std::rt::lang_start_internal (rt.rs:148)
+                    n1: 8388608 0x426A19: std::rt::lang_start (rt.rs:165)
+                     n0: 8388608 0x3EF41D: main (in /home/js/Thesis/LibAFL/fuzzers/interleaving_fuzz/target/debug/interleaving_fuzz)
+ n4: 584160 0x4A5F292: g_malloc0 (gmem.c:133)
+  n1: 196656 0x69668D: tcg_exec_realizefn (cpu-exec.c:1158)
+   n1: 196656 0x665C78: cpu_exec_realizefn (cpu-target.c:288)
+    n1: 196656 0x616DDC: x86_cpu_realizefn (cpu.c:7308)
+     n1: 196656 0x6D6882: device_set_realized (qdev.c:510)
+      n1: 196656 0x6D9865: property_set_bool (object.c:2305)
+       n1: 196656 0x6DC3C1: object_property_set (object.c:1435)
+        n1: 196656 0x6DF7EE: object_property_set_qobject (qom-qobject.c:28)
+         n1: 196656 0x6DC623: object_property_set_bool (object.c:1504)
+          n2: 196656 0x60D423: cpu_create (cpu-common.c:61)
+           n1: 131104 0x6B1A12: cpu_copy (main.c:239)
+            n1: 131104 0x6C8C13: do_fork (syscall.c:6719)
+             n1: 131104 0x6CD299: do_syscall1.isra.0 (syscall.c:11143)
+              n1: 131104 0x6D1E71: do_syscall (syscall.c:14006)
+               n1: 131104 0x6113F7: cpu_loop (cpu_loop.c:263)
+                n1: 131104 0x670F88: fibers_cpu_loop (fibers.c:44)
+                 n1: 131104 0x66BA6A: pth_spawn_trampoline (pth_lib.c:216)
+                  n0: 131104 0x4BD6BDF: ??? (__start_context.S:66)
+           n0: 65552 in 1 place, below massif's threshold (1.00%)
+  n2: 170328 0x6DA0B6: type_new (object.c:106)
+   n2: 110168 0x6DA261: type_initialize_interface (object.c:274)
+    n1: 108288 0x6DA469: type_initialize (object.c:342)
+     n2: 108288 0x6DA469: type_initialize (object.c:300)
+      n1: 106032 0x6DAE41: object_class_foreach_tramp (object.c:1096)
+       n1: 106032 0x4A4598A: g_hash_table_foreach (ghash.c:2117)
+        n1: 106032 0x6DB527: object_class_foreach (object.c:1118)
+         n1: 106032 0x6B1EFF: qemu_user_init (main.c:851)
+          n1: 106032 0x4487FB: libafl_qemu::emu::Emulator::new (emu.rs:1072)
+           n1: 106032 0x3EDB64: interleaving_fuzz::fuzz (main.rs:132)
+            n1: 106032 0x3ED616: interleaving_fuzz::main (main.rs:116)
+             n1: 106032 0x3C6BCA: core::ops::function::FnOnce::call_once (function.rs:250)
+              n1: 106032 0x3D217D: std::sys_common::backtrace::__rust_begin_short_backtrace (backtrace.rs:155)
+               n1: 106032 0x426A40: std::rt::lang_start::{{closure}} (rt.rs:166)
+                n1: 106032 0xBFAE50: call_once<(), (dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (function.rs:284)
+                 n1: 106032 0xBFAE50: do_call<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panicking.rs:552)
+                  n1: 106032 0xBFAE50: try<i32, &(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (panicking.rs:516)
+                   n1: 106032 0xBFAE50: catch_unwind<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panic.rs:142)
+                    n1: 106032 0xBFAE50: {closure#2} (rt.rs:148)
+                     n1: 106032 0xBFAE50: do_call<std::rt::lang_start_internal::{closure_env#2}, isize> (panicking.rs:552)
+                      n1: 106032 0xBFAE50: try<isize, std::rt::lang_start_internal::{closure_env#2}> (panicking.rs:516)
+                       n1: 106032 0xBFAE50: catch_unwind<std::rt::lang_start_internal::{closure_env#2}, isize> (panic.rs:142)
+                        n1: 106032 0xBFAE50: std::rt::lang_start_internal (rt.rs:148)
+                         n1: 106032 0x426A19: std::rt::lang_start (rt.rs:165)
+                          n0: 106032 0x3EF41D: main (in /home/js/Thesis/LibAFL/fuzzers/interleaving_fuzz/target/debug/interleaving_fuzz)
+      n0: 2256 in 2 places, all below massif's threshold (1.00%)
+    n0: 1880 in 1 place, below massif's threshold (1.00%)
+   n0: 60160 in 3 places, all below massif's threshold (1.00%)
+  n0: 112024 in 22 places, all below massif's threshold (1.00%)
+  n1: 105152 0x6DA3EB: type_initialize (object.c:325)
+   n1: 105152 0x6DA3EB: type_initialize (object.c:300)
+    n0: 105152 in 4 places, all below massif's threshold (1.00%)
+ n1: 524608 0x70C3D0: qemu_try_memalign (memalign.c:53)
+  n2: 524608 0x70C500: qemu_memalign (memalign.c:73)
+   n1: 524288 0x708D34: qht_map_create (qht.c:457)
+    n1: 524288 0x709315: qht_init (qht.c:475)
+     n1: 524288 0x694F6B: tcg_init_machine (tcg-all.c:124)
+      n1: 524288 0x6B1F21: qemu_user_init (main.c:854)
+       n1: 524288 0x4487FB: libafl_qemu::emu::Emulator::new (emu.rs:1072)
+        n1: 524288 0x3EDB64: interleaving_fuzz::fuzz (main.rs:132)
+         n1: 524288 0x3ED616: interleaving_fuzz::main (main.rs:116)
+          n1: 524288 0x3C6BCA: core::ops::function::FnOnce::call_once (function.rs:250)
+           n1: 524288 0x3D217D: std::sys_common::backtrace::__rust_begin_short_backtrace (backtrace.rs:155)
+            n1: 524288 0x426A40: std::rt::lang_start::{{closure}} (rt.rs:166)
+             n1: 524288 0xBFAE50: call_once<(), (dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (function.rs:284)
+              n1: 524288 0xBFAE50: do_call<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panicking.rs:552)
+               n1: 524288 0xBFAE50: try<i32, &(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (panicking.rs:516)
+                n1: 524288 0xBFAE50: catch_unwind<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panic.rs:142)
+                 n1: 524288 0xBFAE50: {closure#2} (rt.rs:148)
+                  n1: 524288 0xBFAE50: do_call<std::rt::lang_start_internal::{closure_env#2}, isize> (panicking.rs:552)
+                   n1: 524288 0xBFAE50: try<isize, std::rt::lang_start_internal::{closure_env#2}> (panicking.rs:516)
+                    n1: 524288 0xBFAE50: catch_unwind<std::rt::lang_start_internal::{closure_env#2}, isize> (panic.rs:142)
+                     n1: 524288 0xBFAE50: std::rt::lang_start_internal (rt.rs:148)
+                      n1: 524288 0x426A19: std::rt::lang_start (rt.rs:165)
+                       n0: 524288 0x3EF41D: main (in /home/js/Thesis/LibAFL/fuzzers/interleaving_fuzz/target/debug/interleaving_fuzz)
+   n0: 320 in 2 places, all below massif's threshold (1.00%)
+ n1: 282024 0x4A5E58A: g_malloc (gmem.c:100)
+  n0: 282024 in 35 places, all below massif's threshold (1.00%)
+ n1: 262144 0x67036F: __pth_tcb_alloc (pth_tcb.c:119)
+  n2: 262144 0x66B34F: pth_spawn (pth_lib.c:245)
+   n0: 131072 in 2 places, all below massif's threshold (1.00%)
+   n2: 131072 0x671A38: fibers_spawn (fibers-thread.c:27)
+    n1: 131072 0x6C8DA4: do_fork (syscall.c:6772)
+     n1: 131072 0x6CD299: do_syscall1.isra.0 (syscall.c:11143)
+      n1: 131072 0x6D1E71: do_syscall (syscall.c:14006)
+       n1: 131072 0x6113F7: cpu_loop (cpu_loop.c:263)
+        n1: 131072 0x670F88: fibers_cpu_loop (fibers.c:44)
+         n1: 131072 0x66BA6A: pth_spawn_trampoline (pth_lib.c:216)
+          n0: 131072 0x4BD6BDF: ??? (__start_context.S:66)
+    n0: 0 in 1 place, below massif's threshold (1.00%)
+ n0: 166106 in 75 places, all below massif's threshold (1.00%)
+ n1: 131072 0x98E9F1: alloc_zeroed (alloc.rs:170)
+  n1: 131072 0x98E9F1: alloc::alloc::Global::alloc_impl (alloc.rs:181)
+   n1: 131072 0x98EC4B: <alloc::alloc::Global as core::alloc::Allocator>::allocate_zeroed (alloc.rs:246)
+    n1: 131072 0x98C989: alloc::raw_vec::RawVec<T,A>::allocate_in (raw_vec.rs:200)
+     n1: 131072 0x98E2D2: with_capacity_zeroed_in<u16, alloc::alloc::Global> (raw_vec.rs:153)
+      n1: 131072 0x98E2D2: <T as alloc::vec::spec_from_elem::SpecFromElem>::from_elem (spec_from_elem.rs:25)
+       n1: 131072 0x98BF00: alloc::vec::from_elem (mod.rs:2627)
+        n1: 131072 0x83DCA4: libafl::observers::map::init_count_class_16 (map.rs:62)
+         n1: 131072 0x4000EB: libafl::observers::map::HitcountsMapObserver<M>::new (map.rs:1485)
+          n1: 131072 0x3EE889: interleaving_fuzz::fuzz (main.rs:168)
+           n1: 131072 0x3ED616: interleaving_fuzz::main (main.rs:116)
+            n1: 131072 0x3C6BCA: core::ops::function::FnOnce::call_once (function.rs:250)
+             n1: 131072 0x3D217D: std::sys_common::backtrace::__rust_begin_short_backtrace (backtrace.rs:155)
+              n1: 131072 0x426A40: std::rt::lang_start::{{closure}} (rt.rs:166)
+               n1: 131072 0xBFAE50: call_once<(), (dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (function.rs:284)
+                n1: 131072 0xBFAE50: do_call<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panicking.rs:552)
+                 n1: 131072 0xBFAE50: try<i32, &(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (panicking.rs:516)
+                  n1: 131072 0xBFAE50: catch_unwind<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panic.rs:142)
+                   n1: 131072 0xBFAE50: {closure#2} (rt.rs:148)
+                    n1: 131072 0xBFAE50: do_call<std::rt::lang_start_internal::{closure_env#2}, isize> (panicking.rs:552)
+                     n1: 131072 0xBFAE50: try<isize, std::rt::lang_start_internal::{closure_env#2}> (panicking.rs:516)
+                      n1: 131072 0xBFAE50: catch_unwind<std::rt::lang_start_internal::{closure_env#2}, isize> (panic.rs:142)
+                       n1: 131072 0xBFAE50: std::rt::lang_start_internal (rt.rs:148)
+                        n1: 131072 0x426A19: std::rt::lang_start (rt.rs:165)
+                         n0: 131072 0x3EF41D: main (in /home/js/Thesis/LibAFL/fuzzers/interleaving_fuzz/target/debug/interleaving_fuzz)
+#-----------
+snapshot=38
+#-----------
+time=2674387449
+mem_heap_B=10275444
+mem_heap_extra_B=118396
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=39
+#-----------
+time=2768671645
+mem_heap_B=10277709
+mem_heap_extra_B=118947
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=40
+#-----------
+time=2839395885
+mem_heap_B=10279240
+mem_heap_extra_B=119352
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=41
+#-----------
+time=2886547992
+mem_heap_B=10280428
+mem_heap_extra_B=119644
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=42
+#-----------
+time=2980840549
+mem_heap_B=10283640
+mem_heap_extra_B=120280
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=43
+#-----------
+time=3028030226
+mem_heap_B=10287352
+mem_heap_extra_B=120664
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=44
+#-----------
+time=3098923534
+mem_heap_B=10110464
+mem_heap_extra_B=119112
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=45
+#-----------
+time=3196114888
+mem_heap_B=10288126
+mem_heap_extra_B=122370
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=46
+#-----------
+time=3243260426
+mem_heap_B=10289255
+mem_heap_extra_B=122601
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=47
+#-----------
+time=3317325140
+mem_heap_B=10291030
+mem_heap_extra_B=123442
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=48
+#-----------
+time=3388041982
+mem_heap_B=10292615
+mem_heap_extra_B=123465
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=49
+#-----------
+time=3435187626
+mem_heap_B=10293886
+mem_heap_extra_B=123650
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=50
+#-----------
+time=3476378608
+mem_heap_B=10294918
+mem_heap_extra_B=124306
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=51
+#-----------
+time=3517606043
+mem_heap_B=10295926
+mem_heap_extra_B=124530
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=52
+#-----------
+time=3558850717
+mem_heap_B=10296934
+mem_heap_extra_B=124754
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=53
+#-----------
+time=3600081732
+mem_heap_B=10297942
+mem_heap_extra_B=124978
+mem_stacks_B=0
+heap_tree=detailed
+n7: 10297942 (heap allocation functions) malloc/new/new[], --alloc-fns, etc.
+ n1: 8388608 0x3E39BA: libafl_bolts::os::unix_signals::setup_signal_handler (unix_signals.rs:439)
+  n1: 8388608 0x3F038D: libafl::executors::hooks::inprocess::InProcessHooks<S>::new (inprocess.rs:246)
+   n1: 8388608 0x3E1085: libafl::executors::inprocess::inner::GenericInProcessExecutorInner<HT,OT,S>::with_timeout_generic (inner.rs:238)
+    n1: 8388608 0x3F86DF: libafl::executors::inprocess::GenericInProcessExecutor<H,&mut H,(),OT,S>::with_timeout (mod.rs:251)
+     n1: 8388608 0x3FD9FC: libafl_qemu::executor::QemuExecutor<H,OT,QT,S>::new (mod.rs:202)
+      n1: 8388608 0x3EEDFE: interleaving_fuzz::fuzz (main.rs:237)
+       n1: 8388608 0x3ED616: interleaving_fuzz::main (main.rs:116)
+        n1: 8388608 0x3C6BCA: core::ops::function::FnOnce::call_once (function.rs:250)
+         n1: 8388608 0x3D217D: std::sys_common::backtrace::__rust_begin_short_backtrace (backtrace.rs:155)
+          n1: 8388608 0x426A40: std::rt::lang_start::{{closure}} (rt.rs:166)
+           n1: 8388608 0xBFAE50: call_once<(), (dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (function.rs:284)
+            n1: 8388608 0xBFAE50: do_call<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panicking.rs:552)
+             n1: 8388608 0xBFAE50: try<i32, &(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (panicking.rs:516)
+              n1: 8388608 0xBFAE50: catch_unwind<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panic.rs:142)
+               n1: 8388608 0xBFAE50: {closure#2} (rt.rs:148)
+                n1: 8388608 0xBFAE50: do_call<std::rt::lang_start_internal::{closure_env#2}, isize> (panicking.rs:552)
+                 n1: 8388608 0xBFAE50: try<isize, std::rt::lang_start_internal::{closure_env#2}> (panicking.rs:516)
+                  n1: 8388608 0xBFAE50: catch_unwind<std::rt::lang_start_internal::{closure_env#2}, isize> (panic.rs:142)
+                   n1: 8388608 0xBFAE50: std::rt::lang_start_internal (rt.rs:148)
+                    n1: 8388608 0x426A19: std::rt::lang_start (rt.rs:165)
+                     n0: 8388608 0x3EF41D: main (in /home/js/Thesis/LibAFL/fuzzers/interleaving_fuzz/target/debug/interleaving_fuzz)
+ n1: 524608 0x70C3D0: qemu_try_memalign (memalign.c:53)
+  n2: 524608 0x70C500: qemu_memalign (memalign.c:73)
+   n1: 524288 0x708D34: qht_map_create (qht.c:457)
+    n1: 524288 0x709315: qht_init (qht.c:475)
+     n1: 524288 0x694F6B: tcg_init_machine (tcg-all.c:124)
+      n1: 524288 0x6B1F21: qemu_user_init (main.c:854)
+       n1: 524288 0x4487FB: libafl_qemu::emu::Emulator::new (emu.rs:1072)
+        n1: 524288 0x3EDB64: interleaving_fuzz::fuzz (main.rs:132)
+         n1: 524288 0x3ED616: interleaving_fuzz::main (main.rs:116)
+          n1: 524288 0x3C6BCA: core::ops::function::FnOnce::call_once (function.rs:250)
+           n1: 524288 0x3D217D: std::sys_common::backtrace::__rust_begin_short_backtrace (backtrace.rs:155)
+            n1: 524288 0x426A40: std::rt::lang_start::{{closure}} (rt.rs:166)
+             n1: 524288 0xBFAE50: call_once<(), (dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (function.rs:284)
+              n1: 524288 0xBFAE50: do_call<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panicking.rs:552)
+               n1: 524288 0xBFAE50: try<i32, &(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (panicking.rs:516)
+                n1: 524288 0xBFAE50: catch_unwind<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panic.rs:142)
+                 n1: 524288 0xBFAE50: {closure#2} (rt.rs:148)
+                  n1: 524288 0xBFAE50: do_call<std::rt::lang_start_internal::{closure_env#2}, isize> (panicking.rs:552)
+                   n1: 524288 0xBFAE50: try<isize, std::rt::lang_start_internal::{closure_env#2}> (panicking.rs:516)
+                    n1: 524288 0xBFAE50: catch_unwind<std::rt::lang_start_internal::{closure_env#2}, isize> (panic.rs:142)
+                     n1: 524288 0xBFAE50: std::rt::lang_start_internal (rt.rs:148)
+                      n1: 524288 0x426A19: std::rt::lang_start (rt.rs:165)
+                       n0: 524288 0x3EF41D: main (in /home/js/Thesis/LibAFL/fuzzers/interleaving_fuzz/target/debug/interleaving_fuzz)
+   n0: 320 in 2 places, all below massif's threshold (1.00%)
+ n4: 518608 0x4A5F292: g_malloc0 (gmem.c:133)
+  n2: 170328 0x6DA0B6: type_new (object.c:106)
+   n2: 110168 0x6DA261: type_initialize_interface (object.c:274)
+    n1: 108288 0x6DA469: type_initialize (object.c:342)
+     n2: 108288 0x6DA469: type_initialize (object.c:300)
+      n1: 106032 0x6DAE41: object_class_foreach_tramp (object.c:1096)
+       n1: 106032 0x4A4598A: g_hash_table_foreach (ghash.c:2117)
+        n1: 106032 0x6DB527: object_class_foreach (object.c:1118)
+         n1: 106032 0x6B1EFF: qemu_user_init (main.c:851)
+          n1: 106032 0x4487FB: libafl_qemu::emu::Emulator::new (emu.rs:1072)
+           n1: 106032 0x3EDB64: interleaving_fuzz::fuzz (main.rs:132)
+            n1: 106032 0x3ED616: interleaving_fuzz::main (main.rs:116)
+             n1: 106032 0x3C6BCA: core::ops::function::FnOnce::call_once (function.rs:250)
+              n1: 106032 0x3D217D: std::sys_common::backtrace::__rust_begin_short_backtrace (backtrace.rs:155)
+               n1: 106032 0x426A40: std::rt::lang_start::{{closure}} (rt.rs:166)
+                n1: 106032 0xBFAE50: call_once<(), (dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (function.rs:284)
+                 n1: 106032 0xBFAE50: do_call<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panicking.rs:552)
+                  n1: 106032 0xBFAE50: try<i32, &(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (panicking.rs:516)
+                   n1: 106032 0xBFAE50: catch_unwind<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panic.rs:142)
+                    n1: 106032 0xBFAE50: {closure#2} (rt.rs:148)
+                     n1: 106032 0xBFAE50: do_call<std::rt::lang_start_internal::{closure_env#2}, isize> (panicking.rs:552)
+                      n1: 106032 0xBFAE50: try<isize, std::rt::lang_start_internal::{closure_env#2}> (panicking.rs:516)
+                       n1: 106032 0xBFAE50: catch_unwind<std::rt::lang_start_internal::{closure_env#2}, isize> (panic.rs:142)
+                        n1: 106032 0xBFAE50: std::rt::lang_start_internal (rt.rs:148)
+                         n1: 106032 0x426A19: std::rt::lang_start (rt.rs:165)
+                          n0: 106032 0x3EF41D: main (in /home/js/Thesis/LibAFL/fuzzers/interleaving_fuzz/target/debug/interleaving_fuzz)
+      n0: 2256 in 2 places, all below massif's threshold (1.00%)
+    n0: 1880 in 1 place, below massif's threshold (1.00%)
+   n0: 60160 in 3 places, all below massif's threshold (1.00%)
+  n1: 131104 0x69668D: tcg_exec_realizefn (cpu-exec.c:1158)
+   n1: 131104 0x665C78: cpu_exec_realizefn (cpu-target.c:288)
+    n1: 131104 0x616DDC: x86_cpu_realizefn (cpu.c:7308)
+     n1: 131104 0x6D6882: device_set_realized (qdev.c:510)
+      n1: 131104 0x6D9865: property_set_bool (object.c:2305)
+       n1: 131104 0x6DC3C1: object_property_set (object.c:1435)
+        n1: 131104 0x6DF7EE: object_property_set_qobject (qom-qobject.c:28)
+         n1: 131104 0x6DC623: object_property_set_bool (object.c:1504)
+          n1: 131104 0x60D423: cpu_create (cpu-common.c:61)
+           n0: 131104 in 2 places, all below massif's threshold (1.00%)
+  n0: 112024 in 22 places, all below massif's threshold (1.00%)
+  n1: 105152 0x6DA3EB: type_initialize (object.c:325)
+   n1: 105152 0x6DA3EB: type_initialize (object.c:300)
+    n0: 105152 in 4 places, all below massif's threshold (1.00%)
+ n1: 294410 0x4A5E58A: g_malloc (gmem.c:100)
+  n0: 294410 in 35 places, all below massif's threshold (1.00%)
+ n1: 262144 0x67036F: __pth_tcb_alloc (pth_tcb.c:119)
+  n2: 262144 0x66B34F: pth_spawn (pth_lib.c:245)
+   n0: 131072 in 2 places, all below massif's threshold (1.00%)
+   n2: 131072 0x671A38: fibers_spawn (fibers-thread.c:27)
+    n1: 131072 0x6C8DA4: do_fork (syscall.c:6772)
+     n1: 131072 0x6CD299: do_syscall1.isra.0 (syscall.c:11143)
+      n1: 131072 0x6D1E71: do_syscall (syscall.c:14006)
+       n1: 131072 0x6113F7: cpu_loop (cpu_loop.c:263)
+        n1: 131072 0x670F88: fibers_cpu_loop (fibers.c:44)
+         n1: 131072 0x66BA6A: pth_spawn_trampoline (pth_lib.c:216)
+          n0: 131072 0x4BD6BDF: ??? (__start_context.S:66)
+    n0: 0 in 1 place, below massif's threshold (1.00%)
+ n0: 178492 in 75 places, all below massif's threshold (1.00%)
+ n1: 131072 0x98E9F1: alloc_zeroed (alloc.rs:170)
+  n1: 131072 0x98E9F1: alloc::alloc::Global::alloc_impl (alloc.rs:181)
+   n1: 131072 0x98EC4B: <alloc::alloc::Global as core::alloc::Allocator>::allocate_zeroed (alloc.rs:246)
+    n1: 131072 0x98C989: alloc::raw_vec::RawVec<T,A>::allocate_in (raw_vec.rs:200)
+     n1: 131072 0x98E2D2: with_capacity_zeroed_in<u16, alloc::alloc::Global> (raw_vec.rs:153)
+      n1: 131072 0x98E2D2: <T as alloc::vec::spec_from_elem::SpecFromElem>::from_elem (spec_from_elem.rs:25)
+       n1: 131072 0x98BF00: alloc::vec::from_elem (mod.rs:2627)
+        n1: 131072 0x83DCA4: libafl::observers::map::init_count_class_16 (map.rs:62)
+         n1: 131072 0x4000EB: libafl::observers::map::HitcountsMapObserver<M>::new (map.rs:1485)
+          n1: 131072 0x3EE889: interleaving_fuzz::fuzz (main.rs:168)
+           n1: 131072 0x3ED616: interleaving_fuzz::main (main.rs:116)
+            n1: 131072 0x3C6BCA: core::ops::function::FnOnce::call_once (function.rs:250)
+             n1: 131072 0x3D217D: std::sys_common::backtrace::__rust_begin_short_backtrace (backtrace.rs:155)
+              n1: 131072 0x426A40: std::rt::lang_start::{{closure}} (rt.rs:166)
+               n1: 131072 0xBFAE50: call_once<(), (dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (function.rs:284)
+                n1: 131072 0xBFAE50: do_call<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panicking.rs:552)
+                 n1: 131072 0xBFAE50: try<i32, &(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (panicking.rs:516)
+                  n1: 131072 0xBFAE50: catch_unwind<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panic.rs:142)
+                   n1: 131072 0xBFAE50: {closure#2} (rt.rs:148)
+                    n1: 131072 0xBFAE50: do_call<std::rt::lang_start_internal::{closure_env#2}, isize> (panicking.rs:552)
+                     n1: 131072 0xBFAE50: try<isize, std::rt::lang_start_internal::{closure_env#2}> (panicking.rs:516)
+                      n1: 131072 0xBFAE50: catch_unwind<std::rt::lang_start_internal::{closure_env#2}, isize> (panic.rs:142)
+                       n1: 131072 0xBFAE50: std::rt::lang_start_internal (rt.rs:148)
+                        n1: 131072 0x426A19: std::rt::lang_start (rt.rs:165)
+                         n0: 131072 0x3EF41D: main (in /home/js/Thesis/LibAFL/fuzzers/interleaving_fuzz/target/debug/interleaving_fuzz)
+#-----------
+snapshot=54
+#-----------
+time=3641316826
+mem_heap_B=10298950
+mem_heap_extra_B=125202
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=55
+#-----------
+time=3682548489
+mem_heap_B=10299958
+mem_heap_extra_B=125426
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=56
+#-----------
+time=3723777290
+mem_heap_B=10300966
+mem_heap_extra_B=125650
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=57
+#-----------
+time=3765015764
+mem_heap_B=10301974
+mem_heap_extra_B=125874
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=58
+#-----------
+time=3806243506
+mem_heap_B=10302982
+mem_heap_extra_B=126098
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=59
+#-----------
+time=3847477563
+mem_heap_B=10303990
+mem_heap_extra_B=126322
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=60
+#-----------
+time=3886245003
+mem_heap_B=10304931
+mem_heap_extra_B=126485
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=61
+#-----------
+time=3927477791
+mem_heap_B=10305862
+mem_heap_extra_B=126738
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=62
+#-----------
+time=3968717198
+mem_heap_B=10306870
+mem_heap_extra_B=126962
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=63
+#-----------
+time=4009949371
+mem_heap_B=10307878
+mem_heap_extra_B=127186
+mem_stacks_B=0
+heap_tree=detailed
+n7: 10307878 (heap allocation functions) malloc/new/new[], --alloc-fns, etc.
+ n1: 8388608 0x3E39BA: libafl_bolts::os::unix_signals::setup_signal_handler (unix_signals.rs:439)
+  n1: 8388608 0x3F038D: libafl::executors::hooks::inprocess::InProcessHooks<S>::new (inprocess.rs:246)
+   n1: 8388608 0x3E1085: libafl::executors::inprocess::inner::GenericInProcessExecutorInner<HT,OT,S>::with_timeout_generic (inner.rs:238)
+    n1: 8388608 0x3F86DF: libafl::executors::inprocess::GenericInProcessExecutor<H,&mut H,(),OT,S>::with_timeout (mod.rs:251)
+     n1: 8388608 0x3FD9FC: libafl_qemu::executor::QemuExecutor<H,OT,QT,S>::new (mod.rs:202)
+      n1: 8388608 0x3EEDFE: interleaving_fuzz::fuzz (main.rs:237)
+       n1: 8388608 0x3ED616: interleaving_fuzz::main (main.rs:116)
+        n1: 8388608 0x3C6BCA: core::ops::function::FnOnce::call_once (function.rs:250)
+         n1: 8388608 0x3D217D: std::sys_common::backtrace::__rust_begin_short_backtrace (backtrace.rs:155)
+          n1: 8388608 0x426A40: std::rt::lang_start::{{closure}} (rt.rs:166)
+           n1: 8388608 0xBFAE50: call_once<(), (dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (function.rs:284)
+            n1: 8388608 0xBFAE50: do_call<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panicking.rs:552)
+             n1: 8388608 0xBFAE50: try<i32, &(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (panicking.rs:516)
+              n1: 8388608 0xBFAE50: catch_unwind<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panic.rs:142)
+               n1: 8388608 0xBFAE50: {closure#2} (rt.rs:148)
+                n1: 8388608 0xBFAE50: do_call<std::rt::lang_start_internal::{closure_env#2}, isize> (panicking.rs:552)
+                 n1: 8388608 0xBFAE50: try<isize, std::rt::lang_start_internal::{closure_env#2}> (panicking.rs:516)
+                  n1: 8388608 0xBFAE50: catch_unwind<std::rt::lang_start_internal::{closure_env#2}, isize> (panic.rs:142)
+                   n1: 8388608 0xBFAE50: std::rt::lang_start_internal (rt.rs:148)
+                    n1: 8388608 0x426A19: std::rt::lang_start (rt.rs:165)
+                     n0: 8388608 0x3EF41D: main (in /home/js/Thesis/LibAFL/fuzzers/interleaving_fuzz/target/debug/interleaving_fuzz)
+ n1: 524608 0x70C3D0: qemu_try_memalign (memalign.c:53)
+  n2: 524608 0x70C500: qemu_memalign (memalign.c:73)
+   n1: 524288 0x708D34: qht_map_create (qht.c:457)
+    n1: 524288 0x709315: qht_init (qht.c:475)
+     n1: 524288 0x694F6B: tcg_init_machine (tcg-all.c:124)
+      n1: 524288 0x6B1F21: qemu_user_init (main.c:854)
+       n1: 524288 0x4487FB: libafl_qemu::emu::Emulator::new (emu.rs:1072)
+        n1: 524288 0x3EDB64: interleaving_fuzz::fuzz (main.rs:132)
+         n1: 524288 0x3ED616: interleaving_fuzz::main (main.rs:116)
+          n1: 524288 0x3C6BCA: core::ops::function::FnOnce::call_once (function.rs:250)
+           n1: 524288 0x3D217D: std::sys_common::backtrace::__rust_begin_short_backtrace (backtrace.rs:155)
+            n1: 524288 0x426A40: std::rt::lang_start::{{closure}} (rt.rs:166)
+             n1: 524288 0xBFAE50: call_once<(), (dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (function.rs:284)
+              n1: 524288 0xBFAE50: do_call<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panicking.rs:552)
+               n1: 524288 0xBFAE50: try<i32, &(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (panicking.rs:516)
+                n1: 524288 0xBFAE50: catch_unwind<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panic.rs:142)
+                 n1: 524288 0xBFAE50: {closure#2} (rt.rs:148)
+                  n1: 524288 0xBFAE50: do_call<std::rt::lang_start_internal::{closure_env#2}, isize> (panicking.rs:552)
+                   n1: 524288 0xBFAE50: try<isize, std::rt::lang_start_internal::{closure_env#2}> (panicking.rs:516)
+                    n1: 524288 0xBFAE50: catch_unwind<std::rt::lang_start_internal::{closure_env#2}, isize> (panic.rs:142)
+                     n1: 524288 0xBFAE50: std::rt::lang_start_internal (rt.rs:148)
+                      n1: 524288 0x426A19: std::rt::lang_start (rt.rs:165)
+                       n0: 524288 0x3EF41D: main (in /home/js/Thesis/LibAFL/fuzzers/interleaving_fuzz/target/debug/interleaving_fuzz)
+   n0: 320 in 2 places, all below massif's threshold (1.00%)
+ n4: 518608 0x4A5F292: g_malloc0 (gmem.c:133)
+  n2: 170328 0x6DA0B6: type_new (object.c:106)
+   n2: 110168 0x6DA261: type_initialize_interface (object.c:274)
+    n1: 108288 0x6DA469: type_initialize (object.c:342)
+     n2: 108288 0x6DA469: type_initialize (object.c:300)
+      n1: 106032 0x6DAE41: object_class_foreach_tramp (object.c:1096)
+       n1: 106032 0x4A4598A: g_hash_table_foreach (ghash.c:2117)
+        n1: 106032 0x6DB527: object_class_foreach (object.c:1118)
+         n1: 106032 0x6B1EFF: qemu_user_init (main.c:851)
+          n1: 106032 0x4487FB: libafl_qemu::emu::Emulator::new (emu.rs:1072)
+           n1: 106032 0x3EDB64: interleaving_fuzz::fuzz (main.rs:132)
+            n1: 106032 0x3ED616: interleaving_fuzz::main (main.rs:116)
+             n1: 106032 0x3C6BCA: core::ops::function::FnOnce::call_once (function.rs:250)
+              n1: 106032 0x3D217D: std::sys_common::backtrace::__rust_begin_short_backtrace (backtrace.rs:155)
+               n1: 106032 0x426A40: std::rt::lang_start::{{closure}} (rt.rs:166)
+                n1: 106032 0xBFAE50: call_once<(), (dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (function.rs:284)
+                 n1: 106032 0xBFAE50: do_call<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panicking.rs:552)
+                  n1: 106032 0xBFAE50: try<i32, &(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (panicking.rs:516)
+                   n1: 106032 0xBFAE50: catch_unwind<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panic.rs:142)
+                    n1: 106032 0xBFAE50: {closure#2} (rt.rs:148)
+                     n1: 106032 0xBFAE50: do_call<std::rt::lang_start_internal::{closure_env#2}, isize> (panicking.rs:552)
+                      n1: 106032 0xBFAE50: try<isize, std::rt::lang_start_internal::{closure_env#2}> (panicking.rs:516)
+                       n1: 106032 0xBFAE50: catch_unwind<std::rt::lang_start_internal::{closure_env#2}, isize> (panic.rs:142)
+                        n1: 106032 0xBFAE50: std::rt::lang_start_internal (rt.rs:148)
+                         n1: 106032 0x426A19: std::rt::lang_start (rt.rs:165)
+                          n0: 106032 0x3EF41D: main (in /home/js/Thesis/LibAFL/fuzzers/interleaving_fuzz/target/debug/interleaving_fuzz)
+      n0: 2256 in 2 places, all below massif's threshold (1.00%)
+    n0: 1880 in 1 place, below massif's threshold (1.00%)
+   n0: 60160 in 3 places, all below massif's threshold (1.00%)
+  n1: 131104 0x69668D: tcg_exec_realizefn (cpu-exec.c:1158)
+   n1: 131104 0x665C78: cpu_exec_realizefn (cpu-target.c:288)
+    n1: 131104 0x616DDC: x86_cpu_realizefn (cpu.c:7308)
+     n1: 131104 0x6D6882: device_set_realized (qdev.c:510)
+      n1: 131104 0x6D9865: property_set_bool (object.c:2305)
+       n1: 131104 0x6DC3C1: object_property_set (object.c:1435)
+        n1: 131104 0x6DF7EE: object_property_set_qobject (qom-qobject.c:28)
+         n1: 131104 0x6DC623: object_property_set_bool (object.c:1504)
+          n1: 131104 0x60D423: cpu_create (cpu-common.c:61)
+           n0: 131104 in 2 places, all below massif's threshold (1.00%)
+  n0: 112024 in 22 places, all below massif's threshold (1.00%)
+  n1: 105152 0x6DA3EB: type_initialize (object.c:325)
+   n1: 105152 0x6DA3EB: type_initialize (object.c:300)
+    n0: 105152 in 4 places, all below massif's threshold (1.00%)
+ n1: 299378 0x4A5E58A: g_malloc (gmem.c:100)
+  n0: 299378 in 35 places, all below massif's threshold (1.00%)
+ n1: 262144 0x67036F: __pth_tcb_alloc (pth_tcb.c:119)
+  n2: 262144 0x66B34F: pth_spawn (pth_lib.c:245)
+   n0: 131072 in 2 places, all below massif's threshold (1.00%)
+   n2: 131072 0x671A38: fibers_spawn (fibers-thread.c:27)
+    n1: 131072 0x6C8DA4: do_fork (syscall.c:6772)
+     n1: 131072 0x6CD299: do_syscall1.isra.0 (syscall.c:11143)
+      n1: 131072 0x6D1E71: do_syscall (syscall.c:14006)
+       n1: 131072 0x6113F7: cpu_loop (cpu_loop.c:263)
+        n1: 131072 0x670F88: fibers_cpu_loop (fibers.c:44)
+         n1: 131072 0x66BA6A: pth_spawn_trampoline (pth_lib.c:216)
+          n0: 131072 0x4BD6BDF: ??? (__start_context.S:66)
+    n0: 0 in 1 place, below massif's threshold (1.00%)
+ n0: 183460 in 75 places, all below massif's threshold (1.00%)
+ n1: 131072 0x98E9F1: alloc_zeroed (alloc.rs:170)
+  n1: 131072 0x98E9F1: alloc::alloc::Global::alloc_impl (alloc.rs:181)
+   n1: 131072 0x98EC4B: <alloc::alloc::Global as core::alloc::Allocator>::allocate_zeroed (alloc.rs:246)
+    n1: 131072 0x98C989: alloc::raw_vec::RawVec<T,A>::allocate_in (raw_vec.rs:200)
+     n1: 131072 0x98E2D2: with_capacity_zeroed_in<u16, alloc::alloc::Global> (raw_vec.rs:153)
+      n1: 131072 0x98E2D2: <T as alloc::vec::spec_from_elem::SpecFromElem>::from_elem (spec_from_elem.rs:25)
+       n1: 131072 0x98BF00: alloc::vec::from_elem (mod.rs:2627)
+        n1: 131072 0x83DCA4: libafl::observers::map::init_count_class_16 (map.rs:62)
+         n1: 131072 0x4000EB: libafl::observers::map::HitcountsMapObserver<M>::new (map.rs:1485)
+          n1: 131072 0x3EE889: interleaving_fuzz::fuzz (main.rs:168)
+           n1: 131072 0x3ED616: interleaving_fuzz::main (main.rs:116)
+            n1: 131072 0x3C6BCA: core::ops::function::FnOnce::call_once (function.rs:250)
+             n1: 131072 0x3D217D: std::sys_common::backtrace::__rust_begin_short_backtrace (backtrace.rs:155)
+              n1: 131072 0x426A40: std::rt::lang_start::{{closure}} (rt.rs:166)
+               n1: 131072 0xBFAE50: call_once<(), (dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (function.rs:284)
+                n1: 131072 0xBFAE50: do_call<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panicking.rs:552)
+                 n1: 131072 0xBFAE50: try<i32, &(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> (panicking.rs:516)
+                  n1: 131072 0xBFAE50: catch_unwind<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> (panic.rs:142)
+                   n1: 131072 0xBFAE50: {closure#2} (rt.rs:148)
+                    n1: 131072 0xBFAE50: do_call<std::rt::lang_start_internal::{closure_env#2}, isize> (panicking.rs:552)
+                     n1: 131072 0xBFAE50: try<isize, std::rt::lang_start_internal::{closure_env#2}> (panicking.rs:516)
+                      n1: 131072 0xBFAE50: catch_unwind<std::rt::lang_start_internal::{closure_env#2}, isize> (panic.rs:142)
+                       n1: 131072 0xBFAE50: std::rt::lang_start_internal (rt.rs:148)
+                        n1: 131072 0x426A19: std::rt::lang_start (rt.rs:165)
+                         n0: 131072 0x3EF41D: main (in /home/js/Thesis/LibAFL/fuzzers/interleaving_fuzz/target/debug/interleaving_fuzz)
+#-----------
+snapshot=64
+#-----------
+time=4051195956
+mem_heap_B=10308886
+mem_heap_extra_B=127410
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=65
+#-----------
+time=4092430382
+mem_heap_B=10309894
+mem_heap_extra_B=127634
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=66
+#-----------
+time=4133663025
+mem_heap_B=10310902
+mem_heap_extra_B=127858
+mem_stacks_B=0
+heap_tree=empty
+#-----------
+snapshot=67
+#-----------
+time=4174893353
+mem_heap_B=10311910
+mem_heap_extra_B=128082
+mem_stacks_B=0
+heap_tree=empty

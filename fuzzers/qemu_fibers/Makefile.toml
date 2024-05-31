@@ -1,13 +1,13 @@
 # Variables
 [env]
 CUSTOM_QEMU_DIR='/home/js/Thesis/LibAFL/qemu-libafl-bridge'
-FUZZER_NAME='interleaving_fuzz'
-HARNESS='harness' 
+FUZZER_NAME='qemu_fibers'
+HARNESS='segfault' 
 PROJECT_DIR = { script = ["pwd"] }
-PROFILE = "dev"
-PROFILE_DIR = "dev"
-#PROFILE = { value = "release", condition = {env_not_set = ["PROFILE"]} }
-#PROFILE_DIR = {value = "release", condition = {env_not_set = ["PROFILE_DIR"] }}
+#PROFILE = "dev"
+#PROFILE_DIR = "dev"
+PROFILE = { value = "release", condition = {env_not_set = ["PROFILE"]} }
+PROFILE_DIR = {value = "release", condition = {env_not_set = ["PROFILE_DIR"] }}
 CUSTOM_QEMU_NO_CONFIGURE = "ok"
 
 [tasks.fuzzer]

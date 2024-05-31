@@ -1,0 +1,97 @@
+[env]
+TARGET_DIR = "${CARGO_MAKE_CRATE_TARGET_DIRECTORY}/x86_64"
+FEATURE = "x86_64"
+CUSTOM_QEMU_DIR='/home/js/Thesis/LibAFL/qemu-libafl-bridge'
+FUZZER_NAME='interleaving_fuzz_multi_core'
+HARNESS='harness' 
+PROJECT_DIR = { script = ["pwd"] }
+#PROFILE = "dev"
+#PROFILE_DIR = "debug"
+#CUSTOM_QEMU_NO_CONFIGURE = "ok"
+PROFILE = { value = "release", condition = {env_not_set = ["PROFILE"]} }
+PROFILE_DIR = {value = "release", condition = {env_not_set = ["PROFILE_DIR"] }}
+
+[tasks.target_dir]
+condition = { files_not_exist = [ "${CARGO_MAKE_CRATE_TARGET_DIRECTORY}" ] }
+script_runner="@shell"
+script='''
+mkdir ${CARGO_MAKE_CRATE_TARGET_DIRECTORY}
+'''
+
+[tasks.deps_dir]
+dependencies = ["target_dir"]
+condition = { files_not_exist = [ "${CARGO_MAKE_CRATE_TARGET_DIRECTORY}/deps/" ] }
+script_runner="@shell"
+script='''
+mkdir ${CARGO_MAKE_CRATE_TARGET_DIRECTORY}/deps/
+'''
+
+[tasks.arch_target_dir]
+dependencies = ["target_dir"]
+condition = { files_not_exist = [ "${TARGET_DIR}" ] }
+script_runner="@shell"
+script='''
+mkdir ${TARGET_DIR}
+'''
+
+[tasks.build]
+command = "cargo"
+args = [
+    "build",
+    "--profile",
+    "${PROFILE}",
+    "--features", "${FEATURE}",
+    "--target-dir", "${TARGET_DIR}"
+]
+
+[tasks.fuzzer]
+dependencies = ["build"]
+script_runner="@shell"
+script='''
+rm -f ${TARGET_DIR}/${PROFILE_DIR}/${FUZZER_NAME}-${CARGO_MAKE_PROFILE}
+mv ${TARGET_DIR}/${PROFILE_DIR}/${FUZZER_NAME} ${TARGET_DIR}/${PROFILE_DIR}/${FUZZER_NAME}-${CARGO_MAKE_PROFILE}
+'''
+
+[tasks.harness]
+script_runner="@shell"
+script='''
+gcc ${PROJECT_DIR}/multi-thread.c -o ${TARGET_DIR}/harness -static
+'''
+dependencies=["arch_target_dir"]
+
+[tasks.run]
+command = "${TARGET_DIR}/${PROFILE_DIR}/${FUZZER_NAME}-${CARGO_MAKE_PROFILE}"
+args = [
+    "--input", "./corpus",
+    "--output", "${TARGET_DIR}/output/",
+    "--log", "${TARGET_DIR}/output/log.txt",
+    "--cores", "0-7",
+    "--asan-cores", "0-3",
+    "--cmplog-cores", "2-5",
+    "--iterations", "1000000",
+    "--tui",
+    "--",
+    "${TARGET_DIR}/harness",
+]
+dependencies = [ "harness", "fuzzer" ]
+
+[tasks.single]
+command = "${TARGET_DIR}/${PROFILE_DIR}/${FUZZER_NAME}-${CARGO_MAKE_PROFILE}"
+args = [
+    "--input", "./corpus",
+    "--output", "${TARGET_DIR}/output/",
+    "--log", "${TARGET_DIR}/output/log.txt",
+    "--cores", "0",
+    "--",
+    "${TARGET_DIR}/harness",
+]
+dependencies = [ "harness", "fuzzer" ]
+
+[tasks.clean]
+# Disable default `clean` definition
+clear = true
+script_runner="@shell"
+script='''
+rm -rf ${CARGO_MAKE_CRATE_TARGET_DIRECTORY}
+cargo clean
+'''

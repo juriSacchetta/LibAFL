@@ -1,0 +1,122 @@
+[env]
+TARGET_DIR = "${CARGO_MAKE_CRATE_TARGET_DIRECTORY}/x86_64"
+FEATURE = "x86_64"
+CUSTOM_QEMU_DIR='/home/js/Thesis/LibAFL/qemu-libafl-bridge'
+FUZZER_NAME='mpv_fuzzer'
+HARNESS='harness' 
+PROJECT_DIR = { script = ["pwd"] }
+#PROFILE = "dev"
+#PROFILE_DIR = "debug"
+#CUSTOM_QEMU_NO_CONFIGURE = "ok"
+PROFILE = { value = "release", condition = {env_not_set = ["PROFILE"]} }
+PROFILE_DIR = {value = "release", condition = {env_not_set = ["PROFILE_DIR"] }}
+
+[tasks.target_dir]
+condition = { files_not_exist = [ "${CARGO_MAKE_CRATE_TARGET_DIRECTORY}" ] }
+script_runner="@shell"
+script='''
+mkdir ${CARGO_MAKE_CRATE_TARGET_DIRECTORY}
+'''
+
+[tasks.deps_dir]
+dependencies = ["target_dir"]
+condition = { files_not_exist = [ "${PROJECT_DIR}/deps" ] }
+script_runner="@shell"
+script='''
+mkdir ${PROJECT_DIR}/deps
+'''
+
+[tasks.arch_target_dir]
+dependencies = ["target_dir"]
+condition = { files_not_exist = [ "${TARGET_DIR}" ] }
+script_runner="@shell"
+script='''
+mkdir ${TARGET_DIR}
+'''
+
+[tasks.corpus]
+#condition = {files_not_exist = ["${PROJECT_DIR}/corpus"]}
+script_runner="@shell"
+script='''
+mkdir -p "${PROJECT_DIR}/corpus" && cd "${PROJECT_DIR}/corpus"
+wget https://github.com/3kyo0/fuzz_samples/archive/refs/heads/master.zip
+unzip master.zip
+rm master.zip
+mv fuzz_samples-master/SIG* .
+rm -rf fuzz_samples-master
+'''
+
+[tasks.mpv]
+condition = { files_not_exist = [ "${PROJECT_DIR}/deps/mpv-0.29.1" ] }
+script_runner="@shell"
+script='''
+mkdir -p ${PROJECT_DIR}/deps && cd ${PROJECT_DIR}/deps
+wget https://github.com/mpv-player/mpv/archive/refs/tags/v0.29.1.tar.gz
+tar -xvf v0.29.1.tar.gz --directory=${PROJECT_DIR}/deps
+rm v0.29.1.tar.gz
+cd ${PROJECT_DIR}/deps/mpv-0.29.1
+./bootstrap.py
+'''
+dependencies = [ "deps_dir"]
+
+[tasks.build]
+command = "cargo"
+args = [
+    "build",
+    "--profile",
+    "${PROFILE}",
+    "--features", "${FEATURE}",
+    "--target-dir", "${TARGET_DIR}"
+]
+
+[tasks.fuzzer]
+dependencies = ["build", "mpv"]
+script_runner="@shell"
+script='''
+rm -f ${TARGET_DIR}/${PROFILE_DIR}/${FUZZER_NAME}-${CARGO_MAKE_PROFILE}
+mv ${TARGET_DIR}/${PROFILE_DIR}/${FUZZER_NAME} ${TARGET_DIR}/${PROFILE_DIR}/${FUZZER_NAME}-${CARGO_MAKE_PROFILE}
+'''
+
+[tasks.harness]
+script_runner="@shell"
+script='''
+gcc ${PROJECT_DIR}/multi-thread.c -o ${TARGET_DIR}/harness -static
+'''
+dependencies=["arch_target_dir"]
+
+[tasks.run]
+command = "${TARGET_DIR}/${PROFILE_DIR}/${FUZZER_NAME}-${CARGO_MAKE_PROFILE}"
+args = [
+    "--input", "./corpus",
+    "--output", "${TARGET_DIR}/output/",
+    "--log", "${TARGET_DIR}/output/log.txt",
+    "--cores", "0-7",
+    "--asan-cores", "0-3",
+    "--cmplog-cores", "2-5",
+    "--iterations", "1000000",
+    "--tui",
+    "--",
+    "${TARGET_DIR}/harness",
+]
+dependencies = [ "harness", "fuzzer" ]
+
+[tasks.single]
+command = "${TARGET_DIR}/${PROFILE_DIR}/${FUZZER_NAME}-${CARGO_MAKE_PROFILE}"
+args = [
+    "--input", "./corpus",
+    "--output", "${TARGET_DIR}/output/",
+    "--log", "${TARGET_DIR}/output/log.txt",
+    "--cores", "0",
+    "--",
+    "${TARGET_DIR}/harness",
+]
+dependencies = [ "harness", "fuzzer" ]
+
+[tasks.clean]
+# Disable default `clean` definition
+clear = true
+script_runner="@shell"
+script='''
+rm -rf ${CARGO_MAKE_CRATE_TARGET_DIRECTORY}
+cargo clean
+'''

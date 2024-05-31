@@ -4,9 +4,7 @@ use core::fmt::Debug;
 use libafl::inputs::UsesInput;
 use libafl_bolts::rands::{Rand, RomuDuoJrRand};
 
-use crate::{
-    Emulator, Hook, QemuHelper, QemuHelperTuple, QemuHooks,
-};
+use crate::{Emulator, Hook, QemuHelper, QemuHelperTuple, QemuHooks};
 
 use crate::fibers::input::HasSeed;
 
@@ -50,7 +48,8 @@ impl Default for QemuFibersSchedulerHelper {
 
 impl<S> QemuHelper<S> for QemuFibersSchedulerHelper
 where
-    S: UsesInput, S::Input: HasSeed
+    S: UsesInput,
+    S::Input: HasSeed,
 {
     const HOOKS_DO_SIDE_EFFECTS: bool = true;
 
@@ -61,8 +60,24 @@ where
         hooks.blocks(
             Hook::Empty,
             Hook::Empty,
-            Hook::Function(call_scheduler::<QT, S>),
+            Hook::Function(call_scheduler_3::<QT, S>),
         );
+        // hooks.reads(
+        //     Hook::Empty,
+        //     Hook::Function(call_scheduler_4::<QT, S>),
+        //     Hook::Function(call_scheduler_4::<QT, S>),
+        //     Hook::Function(call_scheduler_4::<QT, S>),
+        //     Hook::Function(call_scheduler_4::<QT, S>),
+        //     Hook::Function(call_scheduler_5::<QT, S>),
+        // );
+        // hooks.writes(
+        //     Hook::Empty,
+        //     Hook::Function(call_scheduler_4::<QT, S>),
+        //     Hook::Function(call_scheduler_4::<QT, S>),
+        //     Hook::Function(call_scheduler_4::<QT, S>),
+        //     Hook::Function(call_scheduler_4::<QT, S>),
+        //     Hook::Function(call_scheduler_5::<QT, S>),
+        // );
     }
 
     fn pre_exec(&mut self, _: &Emulator, _input: &S::Input) {
@@ -70,7 +85,31 @@ where
     }
 }
 
-pub fn call_scheduler<QT, S>(hooks: &mut QemuHooks<QT, S>, _state: Option<&mut S>, _data: u64)
+fn call_scheduler_4<QT, S>(hooks: &mut QemuHooks<QT, S>, _state: Option<&mut S>, _data: u64, _data2: u64)
+where
+    QT: QemuHelperTuple<S>,
+    S: UsesInput,
+{
+    call_scheduler_common(hooks);
+}
+
+fn call_scheduler_5<QT, S>(hooks: &mut QemuHooks<QT, S>, _state: Option<&mut S>, _data: u64, _data2: u64, _size: usize)
+where
+    QT: QemuHelperTuple<S>,
+    S: UsesInput,
+{
+    call_scheduler_common(hooks);
+}
+
+fn call_scheduler_3<QT, S>(hooks: &mut QemuHooks<QT, S>, _state: Option<&mut S>, _data: u64)
+where
+    QT: QemuHelperTuple<S>,
+    S: UsesInput,
+{
+    call_scheduler_common(hooks);
+}
+
+fn call_scheduler_common<QT, S>(hooks: &mut QemuHooks<QT, S>)
 where
     QT: QemuHelperTuple<S>,
     S: UsesInput,

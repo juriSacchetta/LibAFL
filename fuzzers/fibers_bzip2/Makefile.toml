@@ -1,14 +1,33 @@
 # Variables
 [env]
 CUSTOM_QEMU_DIR='/home/js/Thesis/LibAFL/qemu-libafl-bridge'
-FUZZER_NAME='interleaving_fuzz'
+FUZZER_NAME='qemu_fibers'
 HARNESS='harness' 
 PROJECT_DIR = { script = ["pwd"] }
+TARGET_DIR = "${PROJECT_DIR}/target"
+DEPS_DIR = "${PROJECT_DIR}/target/deps"
 PROFILE = "dev"
 PROFILE_DIR = "dev"
 #PROFILE = { value = "release", condition = {env_not_set = ["PROFILE"]} }
 #PROFILE_DIR = {value = "release", condition = {env_not_set = ["PROFILE_DIR"] }}
 CUSTOM_QEMU_NO_CONFIGURE = "ok"
+
+[tasks.deps]
+condition = { files_not_exist = ["${DEPS_DIR}"]}
+script_runner="@shell"
+script='''
+mkdir ${DEPS_DIR}
+'''
+
+[tasks.bzip2]
+condition = { files_not_exist = [ "${DEPS_DIR}/bzip2-1.0.8" ] }
+script_runner="@shell"
+script='''
+mkdir -p ${DEPS_DIR} && cd ${DEPS_DIR} 
+wget https://sourceware.org/pub/bzip2/bzip2-latest.tar.gz
+tar -xvf bzip2-latest.tar.gz
+rm bzip2-latest.tar.gz
+'''
 
 [tasks.fuzzer]
 command = "cargo"
@@ -18,14 +37,17 @@ args = ["build", "--profile", "${PROFILE}"]
 [tasks.harness]
 script_runner="@shell"
 script='''
-gcc multi-thread.c -o ${HARNESS}
+cd ${DEPS_DIR}/bzip2-1.0.8 && make install PREFIX=../
+cd ${PROJECT_DIR}
+gcc -L${DEPS_DIR}/include bzip2_harness.c -o ${TARGET_DIR}/../${HARNESS} -lbz2
 '''
+dependencies = ["bzip2"]
 
 # Run the fuzzer
 [tasks.run]
 command = "cargo"
 args = ["run",  "--profile", "${PROFILE}", "./${HARNESS}", "--", "--libafl-in", "./corpus", "--libafl-out", "./out", "./${HARNESS}"]
-dependencies = [ "harness"]
+dependencies = [ "harness", "fuzzer" ]
 
 # Clean up
 [tasks.clean]
@@ -33,6 +55,6 @@ dependencies = [ "harness"]
 clear = true
 script_runner="@shell"
 script='''
-rm -f ./${FUZZER_NAME}
+rm -rf ./target
 cargo clean
 '''

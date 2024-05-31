@@ -1,0 +1,64 @@
+# Variables
+[env]
+CUSTOM_QEMU_DIR='/home/js/Thesis/LibAFL/qemu-libafl-bridge'
+FUZZER_NAME='qemu_fibers'
+HARNESS='harness' 
+PROJECT_DIR = { script = ["pwd"] }
+TARGET_DIR = "${PROJECT_DIR}/target"
+DEPS_DIR = "${PROJECT_DIR}/target/deps"
+PROFILE = { value = "release", condition = {env_not_set = ["PROFILE"]} }
+PROFILE_DIR = {value = "release", condition = {env_not_set = ["PROFILE_DIR"] }}
+CUSTOM_QEMU_NO_CONFIGURE = "ok"
+
+[tasks.deps]
+condition = { files_not_exist = ["${DEPS_DIR}"]}
+script_runner="@shell"
+script='''
+mkdir ${DEPS_DIR}
+'''
+
+[tasks.libvpx]
+condition = { files_not_exist = [ "${DEPS_DIR}/libvpx" ] }
+script_runner="@shell"
+script='''
+mkdir -p ${DEPS_DIR} && cd ${DEPS_DIR} 
+wget https://github.com/webmproject/libvpx/archive/refs/tags/v1.14.0.tar.gz
+tar -xvf v1.14.0.tar.gz
+rm v1.14.0.tar.gz
+mv libvpx-1.14.0 libvpx
+cd ${DEPS_DIR}/libvpx
+if [ ! -f Makefile ]; then
+    ./configure --disable-unit-tests
+fi
+make -j$(nproc)
+'''
+
+[tasks.fuzzer]
+command = "cargo"
+args = ["build", "--profile", "${PROFILE}"]
+
+# Harness
+[tasks.harness]
+condition = { files_not_exist = [ "harness" ] }
+script_runner="@shell"
+script='''
+gcc -std=gnu++11 -DDECODER=vp9  -I${DEPS_DIR}/libvpx -Wl,--start-group ./harness.cc -o ./harness ${DEPS_DIR}/libvpx/libvpx.a -Wl,--end-group -lm
+'''
+dependencies = ["libvpx"]
+
+# Run the fuzzer
+[tasks.run]
+command = "cargo"
+args = ["run",  "--profile", "${PROFILE}", "./${HARNESS}", "--", "--libafl-in", "./corpus", "--libafl-out", "./out", "./${HARNESS}"]
+dependencies = [ "harness", "fuzzer" ]
+
+# Clean up
+[tasks.clean]
+# Disable default `clean` definition
+clear = true
+script_runner="@shell"
+script='''
+rm -rf ./target
+rm harness
+cargo clean
+'''
