@@ -1,27 +1,30 @@
 //! The [`SyncFromDiskStage`] is a stage that imports inputs from disk for e.g. sync with AFL
 
-use core::marker::PhantomData;
-use std::{
-    fs,
-    path::{Path, PathBuf},
-    time::SystemTime,
+use alloc::{
+    borrow::{Cow, ToOwned},
+    vec::Vec,
 };
+use core::{marker::PhantomData, time::Duration};
+use std::path::{Path, PathBuf};
 
-use libafl_bolts::{current_time, shmem::ShMemProvider, Named};
+use libafl_bolts::{current_time, fs::find_new_files_rec, shmem::ShMemProvider, Named};
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "introspection")]
 use crate::state::HasClientPerfMonitor;
 use crate::{
-    corpus::{Corpus, CorpusId, HasTestcase},
+    corpus::{Corpus, CorpusId},
     events::{llmp::LlmpEventConverter, Event, EventConfig, EventFirer},
     executors::{Executor, ExitKind, HasObservers},
     fuzzer::{Evaluator, EvaluatorObservers, ExecutionProcessor},
     inputs::{Input, InputConverter, UsesInput},
-    stages::{RetryRestartHelper, Stage},
-    state::{HasCorpus, HasExecutions, HasMetadata, HasNamedMetadata, HasRand, State, UsesState},
-    Error,
+    stages::{RetryCountRestartHelper, Stage},
+    state::{HasCorpus, HasExecutions, HasRand, State, UsesState},
+    Error, HasMetadata, HasNamedMetadata,
 };
+
+/// Default name for `SyncFromDiskStage`; derived from AFL++
+pub const SYNC_FROM_DISK_STAGE_NAME: &str = "sync";
 
 /// Metadata used to store information about disk sync time
 #[cfg_attr(
@@ -31,7 +34,9 @@ use crate::{
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SyncFromDiskMetadata {
     /// The last time the sync was done
-    pub last_time: SystemTime,
+    pub last_time: Duration,
+    /// The paths that are left to sync
+    pub left_to_sync: Vec<PathBuf>,
 }
 
 libafl_bolts::impl_serdeany!(SyncFromDiskMetadata);
@@ -39,70 +44,97 @@ libafl_bolts::impl_serdeany!(SyncFromDiskMetadata);
 impl SyncFromDiskMetadata {
     /// Create a new [`struct@SyncFromDiskMetadata`]
     #[must_use]
-    pub fn new(last_time: SystemTime) -> Self {
-        Self { last_time }
+    pub fn new(last_time: Duration, left_to_sync: Vec<PathBuf>) -> Self {
+        Self {
+            last_time,
+            left_to_sync,
+        }
     }
 }
 
 /// A stage that loads testcases from disk to sync with other fuzzers such as AFL++
 #[derive(Debug)]
 pub struct SyncFromDiskStage<CB, E, EM, Z> {
-    sync_dir: PathBuf,
+    name: Cow<'static, str>,
+    sync_dirs: Vec<PathBuf>,
     load_callback: CB,
+    interval: Duration,
     phantom: PhantomData<(E, EM, Z)>,
 }
 
 impl<CB, E, EM, Z> UsesState for SyncFromDiskStage<CB, E, EM, Z>
 where
-    E: UsesState,
+    Z: UsesState,
 {
-    type State = E::State;
+    type State = Z::State;
 }
 
-impl<CB, E, EM, Z> Named for SyncFromDiskStage<CB, E, EM, Z>
-where
-    E: UsesState,
-{
-    fn name(&self) -> &str {
-        self.sync_dir.to_str().unwrap()
+impl<CB, E, EM, Z> Named for SyncFromDiskStage<CB, E, EM, Z> {
+    fn name(&self) -> &Cow<'static, str> {
+        &self.name
     }
 }
 
 impl<CB, E, EM, Z> Stage<E, EM, Z> for SyncFromDiskStage<CB, E, EM, Z>
 where
-    CB: FnMut(&mut Z, &mut Z::State, &Path) -> Result<<Z::State as UsesInput>::Input, Error>,
-    E: UsesState<State = Z::State>,
-    EM: UsesState<State = Z::State>,
+    CB: FnMut(&mut Z, &mut Self::State, &Path) -> Result<<Self::State as UsesInput>::Input, Error>,
+    E: UsesState<State = Self::State>,
+    EM: UsesState<State = Self::State>,
     Z: Evaluator<E, EM>,
-    Z::State: HasCorpus + HasRand + HasMetadata + HasNamedMetadata,
+    Self::State: HasCorpus + HasRand + HasMetadata + HasNamedMetadata,
 {
     #[inline]
     fn perform(
         &mut self,
         fuzzer: &mut Z,
         executor: &mut E,
-        state: &mut Z::State,
+        state: &mut Self::State,
         manager: &mut EM,
     ) -> Result<(), Error> {
         let last = state
             .metadata_map()
             .get::<SyncFromDiskMetadata>()
             .map(|m| m.last_time);
-        let path = self.sync_dir.clone();
-        if let Some(max_time) =
-            self.load_from_directory(&path, &last, fuzzer, executor, state, manager)?
-        {
-            if last.is_none() {
-                state
-                    .metadata_map_mut()
-                    .insert(SyncFromDiskMetadata::new(max_time));
-            } else {
-                state
-                    .metadata_map_mut()
-                    .get_mut::<SyncFromDiskMetadata>()
-                    .unwrap()
-                    .last_time = max_time;
+
+        if let Some(last) = last {
+            if current_time().saturating_sub(last) < self.interval {
+                return Ok(());
             }
+        }
+
+        let new_max_time = current_time();
+
+        let mut new_files = vec![];
+        for dir in &self.sync_dirs {
+            log::debug!("Syncing from dir: {:?}", dir);
+            let new_dir_files = find_new_files_rec(dir, &last)?;
+            new_files.extend(new_dir_files);
+        }
+
+        let sync_from_disk_metadata = state
+            .metadata_or_insert_with(|| SyncFromDiskMetadata::new(new_max_time, new_files.clone()));
+
+        // At the very first sync, last_time and file_to_sync are set twice
+        sync_from_disk_metadata.last_time = new_max_time;
+        sync_from_disk_metadata.left_to_sync = new_files;
+
+        // Iterate over the paths of files left to sync.
+        // By keeping track of these files, we ensure that no file is missed during synchronization,
+        // even in the event of a target restart.
+        let to_sync = sync_from_disk_metadata.left_to_sync.clone();
+        log::debug!("Number of files to sync: {:?}", to_sync.len());
+        for path in to_sync {
+            let input = (self.load_callback)(fuzzer, state, &path)?;
+            // Removing each path from the `left_to_sync` Vec before evaluating
+            // prevents duplicate processing and ensures that each file is evaluated only once. This approach helps
+            // avoid potential infinite loops that may occur if a file is an objective.
+            state
+                .metadata_mut::<SyncFromDiskMetadata>()
+                .unwrap()
+                .left_to_sync
+                .retain(|p| p != &path);
+            log::debug!("Syncing and evaluating {:?}", path);
+            fuzzer.evaluate_input(state, executor, manager, input)?;
         }
 
         #[cfg(feature = "introspection")]
@@ -112,78 +144,29 @@ where
     }
 
     #[inline]
-    fn restart_progress_should_run(&mut self, state: &mut Self::State) -> Result<bool, Error> {
+    fn should_restart(&mut self, state: &mut Self::State) -> Result<bool, Error> {
         // TODO: Needs proper crash handling for when an imported testcase crashes
         // For now, Make sure we don't get stuck crashing on this testcase
-        RetryRestartHelper::restart_progress_should_run(state, self, 3)
+        RetryCountRestartHelper::no_retry(state, &self.name)
     }
 
     #[inline]
-    fn clear_restart_progress(&mut self, state: &mut Self::State) -> Result<(), Error> {
-        RetryRestartHelper::clear_restart_progress(state, self)
+    fn clear_progress(&mut self, state: &mut Self::State) -> Result<(), Error> {
+        RetryCountRestartHelper::clear_progress(state, &self.name)
     }
 }
 
-impl<CB, E, EM, Z> SyncFromDiskStage<CB, E, EM, Z>
-where
-    CB: FnMut(&mut Z, &mut Z::State, &Path) -> Result<<Z::State as UsesInput>::Input, Error>,
-    E: UsesState<State = Z::State>,
-    EM: UsesState<State = Z::State>,
-    Z: Evaluator<E, EM>,
-    Z::State: HasCorpus + HasRand + HasMetadata,
-{
+impl<CB, E, EM, Z> SyncFromDiskStage<CB, E, EM, Z> {
     /// Creates a new [`SyncFromDiskStage`]
     #[must_use]
-    pub fn new(sync_dir: PathBuf, load_callback: CB) -> Self {
+    pub fn new(sync_dirs: Vec<PathBuf>, load_callback: CB, interval: Duration, name: &str) -> Self {
         Self {
-            sync_dir,
-            load_callback,
+            name: Cow::Owned(SYNC_FROM_DISK_STAGE_NAME.to_owned() + ":" + name),
             phantom: PhantomData,
+            sync_dirs,
+            interval,
+            load_callback,
         }
-    }
-
-    fn load_from_directory(
-        &mut self,
-        in_dir: &Path,
-        last: &Option<SystemTime>,
-        fuzzer: &mut Z,
-        executor: &mut E,
-        state: &mut Z::State,
-        manager: &mut EM,
-    ) -> Result<Option<SystemTime>, Error> {
-        let mut max_time = None;
-        for entry in fs::read_dir(in_dir)? {
-            let entry = entry?;
-            let path = entry.path();
-            let attributes = fs::metadata(&path);
-
-            if attributes.is_err() {
-                continue;
-            }
-
-            let attr = attributes?;
-
-            if attr.is_file() && attr.len() > 0 {
-                if let Ok(time) = attr.modified() {
-                    if let Some(l) = last {
-                        if time.duration_since(*l).is_err() {
-                            continue;
-                        }
-                    }
-                    max_time = Some(max_time.map_or(time, |t: SystemTime| t.max(time)));
-                    let input = (self.load_callback)(fuzzer, state, &path)?;
-                    fuzzer.evaluate_input(state, executor, manager, input)?;
-                }
-            } else if attr.is_dir() {
-                let dir_max_time =
-                    self.load_from_directory(&path, last, fuzzer, executor, state, manager)?;
-                if let Some(time) = dir_max_time {
-                    max_time = Some(max_time.map_or(time, |t: SystemTime| t.max(time)));
-                }
-            }
-        }
-
-        Ok(max_time)
     }
 }
 
@@ -193,14 +176,13 @@ pub type SyncFromDiskFunction<S, Z> =
 
 impl<E, EM, Z> SyncFromDiskStage<SyncFromDiskFunction<Z::State, Z>, E, EM, Z>
 where
-    E: UsesState<State = Z::State>,
-    EM: UsesState<State = Z::State>,
+    E: UsesState<State = <Self as UsesState>::State>,
+    EM: UsesState<State = <Self as UsesState>::State>,
     Z: Evaluator<E, EM>,
-    Z::State: HasCorpus + HasRand + HasMetadata,
 {
     /// Creates a new [`SyncFromDiskStage`] invoking `Input::from_file` to load inputs
     #[must_use]
-    pub fn with_from_file(sync_dir: PathBuf) -> Self {
+    pub fn with_from_file(sync_dirs: Vec<PathBuf>, interval: Duration) -> Self {
         fn load_callback<S: UsesInput, Z>(
             _: &mut Z,
             _: &mut S,
@@ -209,7 +191,9 @@ where
             Input::from_file(p)
         }
         Self {
-            sync_dir,
+            interval,
+            name: Cow::Borrowed(SYNC_FROM_DISK_STAGE_NAME),
+            sync_dirs,
             load_callback: load_callback::<_, _>,
             phantom: PhantomData,
         }
@@ -239,7 +223,7 @@ impl SyncFromBrokerMetadata {
 
 /// A stage that loads testcases from disk to sync with other fuzzers such as AFL++
 #[derive(Debug)]
-pub struct SyncFromBrokerStage<IC, ICB, DI, S, SP>
+pub struct SyncFromBrokerStage<DI, IC, ICB, S, SP>
 where
     SP: ShMemProvider + 'static,
     S: UsesInput,
@@ -247,10 +231,10 @@ where
     ICB: InputConverter<From = DI, To = S::Input>,
     DI: Input,
 {
-    client: LlmpEventConverter<IC, ICB, DI, S, SP>,
+    client: LlmpEventConverter<DI, IC, ICB, S, SP>,
 }
 
-impl<IC, ICB, DI, S, SP> UsesState for SyncFromBrokerStage<IC, ICB, DI, S, SP>
+impl<DI, IC, ICB, S, SP> UsesState for SyncFromBrokerStage<DI, IC, ICB, S, SP>
 where
     SP: ShMemProvider + 'static,
     S: State,
@@ -261,24 +245,27 @@ where
     type State = S;
 }
 
-impl<E, EM, IC, ICB, DI, S, SP, Z> Stage<E, EM, Z> for SyncFromBrokerStage<IC, ICB, DI, S, SP>
+impl<E, EM, IC, ICB, DI, S, SP, Z> Stage<E, EM, Z> for SyncFromBrokerStage<DI, IC, ICB, S, SP>
 where
     EM: UsesState<State = S> + EventFirer,
-    S: State + HasExecutions + HasCorpus + HasRand + HasMetadata + HasTestcase,
+    S: State + HasExecutions + HasCorpus + HasRand + HasMetadata,
     SP: ShMemProvider,
-    E: HasObservers<State = S> + Executor<EM, Z>,
+    E: HasObservers + Executor<EM, Z, State = S>,
     for<'a> E::Observers: Deserialize<'a>,
-    Z: EvaluatorObservers<E::Observers, State = S> + ExecutionProcessor<E::Observers, State = S>,
+    Z: EvaluatorObservers<EM, E::Observers, State = S>
+        + ExecutionProcessor<EM, E::Observers, State = S>,
     IC: InputConverter<From = S::Input, To = DI>,
     ICB: InputConverter<From = DI, To = S::Input>,
     DI: Input,
+    <<S as HasCorpus>::Corpus as Corpus>::Input: Clone,
+    S::Corpus: Corpus<Input = S::Input>, // delete me
 {
     #[inline]
     fn perform(
         &mut self,
         fuzzer: &mut Z,
         executor: &mut E,
-        state: &mut Z::State,
+        state: &mut Self::State,
         manager: &mut EM,
     ) -> Result<(), Error> {
         if self.client.can_convert() {
@@ -302,8 +289,9 @@ where
                         corpus_size: 0, // TODO choose if sending 0 or the actual real value
                         client_config: EventConfig::AlwaysUnique,
                         time: current_time(),
-                        executions: 0,
                         forward_id: None,
+                        #[cfg(all(unix, feature = "std", feature = "multi_machine"))]
+                        node_id: None,
                     },
                 )?;
 
@@ -331,19 +319,19 @@ where
     }
 
     #[inline]
-    fn restart_progress_should_run(&mut self, _state: &mut Self::State) -> Result<bool, Error> {
+    fn should_restart(&mut self, _state: &mut Self::State) -> Result<bool, Error> {
         // No restart handling needed - does not execute the target.
         Ok(true)
     }
 
     #[inline]
-    fn clear_restart_progress(&mut self, _state: &mut Self::State) -> Result<(), Error> {
+    fn clear_progress(&mut self, _state: &mut Self::State) -> Result<(), Error> {
         // Not needed - does not execute the target.
         Ok(())
     }
 }
 
-impl<IC, ICB, DI, S, SP> SyncFromBrokerStage<IC, ICB, DI, S, SP>
+impl<DI, IC, ICB, S, SP> SyncFromBrokerStage<DI, IC, ICB, S, SP>
 where
     SP: ShMemProvider + 'static,
     S: UsesInput,
@@ -353,7 +341,7 @@ where
 {
     /// Creates a new [`SyncFromBrokerStage`]
     #[must_use]
-    pub fn new(client: LlmpEventConverter<IC, ICB, DI, S, SP>) -> Self {
+    pub fn new(client: LlmpEventConverter<DI, IC, ICB, S, SP>) -> Self {
         Self { client }
     }
 }

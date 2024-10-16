@@ -3,9 +3,10 @@
 
 use core::fmt::Debug;
 
+use libafl_bolts::tuples::RefIndexable;
+
 use crate::{
     executors::{Executor, ExitKind, HasObservers},
-    observers::UsesObservers,
     state::{HasExecutions, UsesState},
     Error,
 };
@@ -22,9 +23,9 @@ impl<A, B> CombinedExecutor<A, B> {
     pub fn new<EM, Z>(primary: A, secondary: B) -> Self
     where
         A: Executor<EM, Z>,
-        B: Executor<EM, Z, State = A::State>,
-        EM: UsesState<State = A::State>,
-        Z: UsesState<State = A::State>,
+        B: Executor<EM, Z, State = <Self as UsesState>::State>,
+        EM: UsesState<State = <Self as UsesState>::State>,
+        Z: UsesState<State = <Self as UsesState>::State>,
     {
         Self { primary, secondary }
     }
@@ -43,10 +44,10 @@ impl<A, B> CombinedExecutor<A, B> {
 impl<A, B, EM, Z> Executor<EM, Z> for CombinedExecutor<A, B>
 where
     A: Executor<EM, Z>,
-    B: Executor<EM, Z, State = A::State>,
-    EM: UsesState<State = A::State>,
-    EM::State: HasExecutions,
-    Z: UsesState<State = A::State>,
+    B: Executor<EM, Z, State = <Self as UsesState>::State>,
+    Self::State: HasExecutions,
+    EM: UsesState<State = <Self as UsesState>::State>,
+    Z: UsesState<State = <Self as UsesState>::State>,
 {
     fn run_target(
         &mut self,
@@ -55,8 +56,6 @@ where
         mgr: &mut EM,
         input: &Self::Input,
     ) -> Result<ExitKind, Error> {
-        *state.executions_mut() += 1;
-
         self.primary.run_target(fuzzer, state, mgr, input)
     }
 }
@@ -68,24 +67,19 @@ where
     type State = A::State;
 }
 
-impl<A, B> UsesObservers for CombinedExecutor<A, B>
-where
-    A: UsesObservers,
-{
-    type Observers = A::Observers;
-}
-
 impl<A, B> HasObservers for CombinedExecutor<A, B>
 where
     A: HasObservers,
 {
+    type Observers = A::Observers;
+
     #[inline]
-    fn observers(&self) -> &Self::Observers {
+    fn observers(&self) -> RefIndexable<&Self::Observers, Self::Observers> {
         self.primary.observers()
     }
 
     #[inline]
-    fn observers_mut(&mut self) -> &mut Self::Observers {
+    fn observers_mut(&mut self) -> RefIndexable<&mut Self::Observers, Self::Observers> {
         self.primary.observers_mut()
     }
 }

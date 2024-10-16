@@ -4,7 +4,7 @@ use libafl::{
     events::SimpleEventManager,
     executors::ExitKind,
     feedbacks::{CrashFeedback, MaxMapFeedback},
-    inputs::{BytesInput, HasBytesVec, HasTargetBytes},
+    inputs::{BytesInput, HasTargetBytes},
     monitors::SimpleMonitor,
     mutators::{havoc_mutations, StdScheduledMutator},
     observers::{HitcountsMapObserver, VariableMapObserver},
@@ -22,7 +22,7 @@ use libafl_bolts::{
 };
 use libafl_qemu::{
     edges::{edges_map_mut_slice, MAX_EDGES_NUM},
-    elf::EasyElf, fibers::{input::QemuFibersInput, mutator::QemuFibersSeedMutator, QemuFibersSchedulerHelper}, filter_qemu_args, Emulator, GuestReg, MmapPerms, QemuEdgeCoverageHelper, QemuExecutor, QemuHooks, QemuSnapshotHelper, Regs,
+    elf::EasyElf, modules::usermode::fibers::{input::QemuFibersInput, mutator::QemuFibersSeedMutator, QemuFibersSchedulerHelper}, filter_qemu_args, Emulator, GuestReg, MmapPerms, QemuEdgeCoverageHelper, QemuExecutor, QemuHooks, QemuSnapshotHelper, Regs,
 };
 use std::{
     env,

@@ -1,7 +1,10 @@
 //! Mutations for [`EncodedInput`]s
 //!
-use alloc::vec::Vec;
-use core::cmp::{max, min};
+use alloc::{borrow::Cow, vec::Vec};
+use core::{
+    cmp::{max, min},
+    num::NonZero,
+};
 
 use libafl_bolts::{
     rands::Rand,
@@ -10,12 +13,12 @@ use libafl_bolts::{
 
 use crate::{
     corpus::Corpus,
-    inputs::{EncodedInput, UsesInput},
+    inputs::EncodedInput,
     mutators::{
         mutations::{buffer_copy, buffer_self_copy, ARITH_MAX},
         MutationResult, Mutator, Named,
     },
-    random_corpus_id,
+    random_corpus_id_with_disabled,
     state::{HasCorpus, HasMaxSize, HasRand},
     Error,
 };
@@ -29,7 +32,7 @@ impl<S: HasRand> Mutator<EncodedInput, S> for EncodedRandMutator {
         if input.codes().is_empty() {
             Ok(MutationResult::Skipped)
         } else {
-            let val = state.rand_mut().choose(input.codes_mut());
+            let val = state.rand_mut().choose(input.codes_mut()).unwrap();
             *val = state.rand_mut().next() as u32;
             Ok(MutationResult::Mutated)
         }
@@ -37,8 +40,9 @@ impl<S: HasRand> Mutator<EncodedInput, S> for EncodedRandMutator {
 }
 
 impl Named for EncodedRandMutator {
-    fn name(&self) -> &str {
-        "EncodedRandMutator"
+    fn name(&self) -> &Cow<'static, str> {
+        static NAME: Cow<'static, str> = Cow::Borrowed("EncodedRandMutator");
+        &NAME
     }
 }
 
@@ -59,7 +63,7 @@ impl<S: HasRand> Mutator<EncodedInput, S> for EncodedIncMutator {
         if input.codes().is_empty() {
             Ok(MutationResult::Skipped)
         } else {
-            let val = state.rand_mut().choose(input.codes_mut());
+            let val = state.rand_mut().choose(input.codes_mut()).unwrap();
             *val = val.wrapping_add(1);
             Ok(MutationResult::Mutated)
         }
@@ -67,8 +71,9 @@ impl<S: HasRand> Mutator<EncodedInput, S> for EncodedIncMutator {
 }
 
 impl Named for EncodedIncMutator {
-    fn name(&self) -> &str {
-        "EncodedIncMutator"
+    fn name(&self) -> &Cow<'static, str> {
+        static NAME: Cow<'static, str> = Cow::Borrowed("EncodedIncMutator");
+        &NAME
     }
 }
 
@@ -89,7 +94,7 @@ impl<S: HasRand> Mutator<EncodedInput, S> for EncodedDecMutator {
         if input.codes().is_empty() {
             Ok(MutationResult::Skipped)
         } else {
-            let val = state.rand_mut().choose(input.codes_mut());
+            let val = state.rand_mut().choose(input.codes_mut()).unwrap();
             *val = val.wrapping_sub(1);
             Ok(MutationResult::Mutated)
         }
@@ -97,8 +102,9 @@ impl<S: HasRand> Mutator<EncodedInput, S> for EncodedDecMutator {
 }
 
 impl Named for EncodedDecMutator {
-    fn name(&self) -> &str {
-        "EncodedDecMutator"
+    fn name(&self) -> &Cow<'static, str> {
+        static NAME: Cow<'static, str> = Cow::Borrowed("EncodedDecMutator");
+        &NAME
     }
 }
 
@@ -119,9 +125,9 @@ impl<S: HasRand> Mutator<EncodedInput, S> for EncodedAddMutator {
         if input.codes().is_empty() {
             Ok(MutationResult::Skipped)
         } else {
-            let val = state.rand_mut().choose(input.codes_mut());
-            let num = 1 + state.rand_mut().below(ARITH_MAX) as u32;
-            *val = match state.rand_mut().below(2) {
+            let val = state.rand_mut().choose(input.codes_mut()).unwrap();
+            let num = 1 + state.rand_mut().below(NonZero::new(ARITH_MAX).unwrap()) as u32;
+            *val = match state.rand_mut().below(NonZero::new(2).unwrap()) {
                 0 => val.wrapping_add(num),
                 _ => val.wrapping_sub(num),
             };
@@ -131,8 +137,9 @@ impl<S: HasRand> Mutator<EncodedInput, S> for EncodedAddMutator {
 }
 
 impl Named for EncodedAddMutator {
-    fn name(&self) -> &str {
-        "EncodedAddMutator"
+    fn name(&self) -> &Cow<'static, str> {
+        static NAME: Cow<'static, str> = Cow::Borrowed("EncodedAddMutator");
+        &NAME
     }
 }
 
@@ -154,9 +161,16 @@ impl<S: HasRand> Mutator<EncodedInput, S> for EncodedDeleteMutator {
         if size <= 2 {
             return Ok(MutationResult::Skipped);
         }
-
-        let off = state.rand_mut().below(size as u64) as usize;
-        let len = state.rand_mut().below((size - off) as u64) as usize;
+        // # Safety
+        // The size is larger than 1 here (checked just above)
+        let off = state
+            .rand_mut()
+            .below(unsafe { NonZero::new(size).unwrap_unchecked() });
+        // # Safety
+        // The size of the offset is below size, the value is never 0.
+        let len = state
+            .rand_mut()
+            .below(unsafe { NonZero::new(size - off).unwrap_unchecked() });
         input.codes_mut().drain(off..off + len);
 
         Ok(MutationResult::Mutated)
@@ -164,8 +178,9 @@ impl<S: HasRand> Mutator<EncodedInput, S> for EncodedDeleteMutator {
 }
 
 impl Named for EncodedDeleteMutator {
-    fn name(&self) -> &str {
-        "EncodedDeleteMutator"
+    fn name(&self) -> &Cow<'static, str> {
+        static NAME: Cow<'static, str> = Cow::Borrowed("EncodedDeleteMutator");
+        &NAME
     }
 }
 
@@ -190,11 +205,17 @@ where
     fn mutate(&mut self, state: &mut S, input: &mut EncodedInput) -> Result<MutationResult, Error> {
         let max_size = state.max_size();
         let size = input.codes().len();
-        if size == 0 {
+        let Some(nonzero_size) = NonZero::new(size) else {
             return Ok(MutationResult::Skipped);
-        }
-        let off = state.rand_mut().below((size + 1) as u64) as usize;
-        let mut len = 1 + state.rand_mut().below(min(16, size as u64)) as usize;
+        };
+
+        // # Safety
+        // The input.codes() len should never be close to an usize, so adding 1 will always result in a non-zero value.
+        // Worst case, we will get a wrong int value as return, not too bad.
+        let off = state
+            .rand_mut()
+            .below(unsafe { NonZero::new(size + 1).unwrap_unchecked() });
+        let mut len = 1 + state.rand_mut().below(nonzero_size);
 
         if size + len > max_size {
             if max_size > size {
@@ -204,10 +225,10 @@ where
             }
         }
 
-        let from = if size == len {
-            0
+        let from = if let Some(bound) = NonZero::new(size - len) {
+            state.rand_mut().below(bound)
         } else {
-            state.rand_mut().below((size - len) as u64) as usize
+            0
         };
 
         input.codes_mut().resize(size + len, 0);
@@ -224,8 +245,9 @@ where
 }
 
 impl Named for EncodedInsertCopyMutator {
-    fn name(&self) -> &str {
-        "EncodedInsertCopyMutator"
+    fn name(&self) -> &Cow<'static, str> {
+        static NAME: Cow<'static, str> = Cow::Borrowed("EncodedInsertCopyMutator");
+        &NAME
     }
 }
 
@@ -244,13 +266,17 @@ pub struct EncodedCopyMutator;
 impl<S: HasRand> Mutator<EncodedInput, S> for EncodedCopyMutator {
     fn mutate(&mut self, state: &mut S, input: &mut EncodedInput) -> Result<MutationResult, Error> {
         let size = input.codes().len();
-        if size <= 1 {
+        let Some(size) = NonZero::new(size) else {
             return Ok(MutationResult::Skipped);
-        }
+        };
 
-        let from = state.rand_mut().below(size as u64) as usize;
-        let to = state.rand_mut().below(size as u64) as usize;
-        let len = 1 + state.rand_mut().below((size - max(from, to)) as u64) as usize;
+        let from = state.rand_mut().below(size);
+        let to = state.rand_mut().below(size);
+        // # Safety
+        // Both from and to are smaller than size, so size minus any of these can never be 0.
+        let len = 1 + state
+            .rand_mut()
+            .below(unsafe { NonZero::new(size.get() - max(from, to)).unwrap_unchecked() });
 
         unsafe {
             buffer_self_copy(input.codes_mut(), from, to, len);
@@ -261,8 +287,9 @@ impl<S: HasRand> Mutator<EncodedInput, S> for EncodedCopyMutator {
 }
 
 impl Named for EncodedCopyMutator {
-    fn name(&self) -> &str {
-        "EncodedCopyMutator"
+    fn name(&self) -> &Cow<'static, str> {
+        static NAME: Cow<'static, str> = Cow::Borrowed("EncodedCopyMutator");
+        &NAME
     }
 }
 
@@ -278,23 +305,29 @@ impl EncodedCopyMutator {
 #[derive(Debug, Default)]
 pub struct EncodedCrossoverInsertMutator;
 
-impl<S> Mutator<S::Input, S> for EncodedCrossoverInsertMutator
+impl<S> Mutator<EncodedInput, S> for EncodedCrossoverInsertMutator
 where
-    S: UsesInput<Input = EncodedInput> + HasRand + HasCorpus + HasMaxSize,
+    S: HasRand + HasCorpus + HasMaxSize,
+    S::Corpus: Corpus<Input = EncodedInput>,
 {
     fn mutate(&mut self, state: &mut S, input: &mut EncodedInput) -> Result<MutationResult, Error> {
         let size = input.codes().len();
 
+        let id = random_corpus_id_with_disabled!(state.corpus(), state.rand_mut());
         // We don't want to use the testcase we're already using for splicing
-        let idx = random_corpus_id!(state.corpus(), state.rand_mut());
         if let Some(cur) = state.corpus().current() {
-            if idx == *cur {
+            if id == *cur {
                 return Ok(MutationResult::Skipped);
             }
         }
 
+        let Some(non_zero_size) = NonZero::new(size) else {
+            return Ok(MutationResult::Skipped);
+        };
+
         let other_size = {
-            let mut other_testcase = state.corpus().get(idx)?.borrow_mut();
+            // new scope to make the borrow checker happy
+            let mut other_testcase = state.corpus().get_from_all(id)?.borrow_mut();
             other_testcase.load_input(state.corpus())?.codes().len()
         };
 
@@ -302,10 +335,18 @@ where
             return Ok(MutationResult::Skipped);
         }
 
+        let Some(non_zero_other_size) = NonZero::new(other_size) else {
+            return Ok(MutationResult::Skipped);
+        };
+
         let max_size = state.max_size();
-        let from = state.rand_mut().below(other_size as u64) as usize;
-        let to = state.rand_mut().below(size as u64) as usize;
-        let mut len = 1 + state.rand_mut().below((other_size - from) as u64) as usize;
+        let from = state.rand_mut().below(non_zero_other_size);
+        let to = state.rand_mut().below(non_zero_size);
+        // # Safety
+        // from is smaller than other_size, other_size is larger than 2, so the subtraction is larger than 0.
+        let mut len = 1 + state
+            .rand_mut()
+            .below(unsafe { NonZero::new(other_size - from).unwrap_unchecked() });
 
         if size + len > max_size {
             if max_size > size {
@@ -315,7 +356,7 @@ where
             }
         }
 
-        let other_testcase = state.corpus().get(idx)?.borrow_mut();
+        let other_testcase = state.corpus().get_from_all(id)?.borrow_mut();
         // no need to `load_input` again -  we did that above already.
         let other = other_testcase.input().as_ref().unwrap();
 
@@ -330,8 +371,9 @@ where
 }
 
 impl Named for EncodedCrossoverInsertMutator {
-    fn name(&self) -> &str {
-        "EncodedCrossoverInsertMutator"
+    fn name(&self) -> &Cow<'static, str> {
+        static NAME: Cow<'static, str> = Cow::Borrowed("EncodedCrossoverInsertMutator");
+        &NAME
     }
 }
 
@@ -347,27 +389,25 @@ impl EncodedCrossoverInsertMutator {
 #[derive(Debug, Default)]
 pub struct EncodedCrossoverReplaceMutator;
 
-impl<S> Mutator<S::Input, S> for EncodedCrossoverReplaceMutator
+impl<S> Mutator<EncodedInput, S> for EncodedCrossoverReplaceMutator
 where
-    S: UsesInput<Input = EncodedInput> + HasRand + HasCorpus,
+    S: HasRand + HasCorpus,
+    S::Corpus: Corpus<Input = EncodedInput>,
 {
     fn mutate(&mut self, state: &mut S, input: &mut EncodedInput) -> Result<MutationResult, Error> {
         let size = input.codes().len();
-        if size == 0 {
-            return Ok(MutationResult::Skipped);
-        }
 
+        let id = random_corpus_id_with_disabled!(state.corpus(), state.rand_mut());
         // We don't want to use the testcase we're already using for splicing
-        let idx = random_corpus_id!(state.corpus(), state.rand_mut());
         if let Some(cur) = state.corpus().current() {
-            if idx == *cur {
+            if id == *cur {
                 return Ok(MutationResult::Skipped);
             }
         }
 
         let other_size = {
             // new scope to make the borrow checker happy
-            let mut other_testcase = state.corpus().get(idx)?.borrow_mut();
+            let mut other_testcase = state.corpus().get_from_all(id)?.borrow_mut();
             other_testcase.load_input(state.corpus())?.codes().len()
         };
 
@@ -375,11 +415,24 @@ where
             return Ok(MutationResult::Skipped);
         }
 
-        let from = state.rand_mut().below(other_size as u64) as usize;
-        let len = state.rand_mut().below(min(other_size - from, size) as u64) as usize;
-        let to = state.rand_mut().below((size - len) as u64) as usize;
+        let Some(non_zero_other_size) = NonZero::new(other_size) else {
+            return Ok(MutationResult::Skipped);
+        };
 
-        let other_testcase = state.corpus().get(idx)?.borrow_mut();
+        let from = state.rand_mut().below(non_zero_other_size);
+
+        let Some(non_zero_min_len) = NonZero::new(min(other_size - from, size)) else {
+            return Ok(MutationResult::Skipped);
+        };
+
+        let len = state.rand_mut().below(non_zero_min_len);
+        // # Safety
+        // size is non-zero, len is below min(size, ...), so the subtraction will always be positive.
+        let to = state
+            .rand_mut()
+            .below(unsafe { NonZero::new(size - len).unwrap_unchecked() });
+
+        let other_testcase = state.corpus().get_from_all(id)?.borrow_mut();
         // no need to load the input again, it'll already be present at this point.
         let other = other_testcase.input().as_ref().unwrap();
 
@@ -392,8 +445,9 @@ where
 }
 
 impl Named for EncodedCrossoverReplaceMutator {
-    fn name(&self) -> &str {
-        "EncodedCrossoverReplaceMutator"
+    fn name(&self) -> &Cow<'static, str> {
+        static NAME: Cow<'static, str> = Cow::Borrowed("EncodedCrossoverReplaceMutator");
+        &NAME
     }
 }
 

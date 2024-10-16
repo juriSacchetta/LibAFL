@@ -5,56 +5,68 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     corpus::{Corpus, CorpusId, Testcase},
-    inputs::{Input, UsesInput},
     Error,
 };
 
 /// A corpus which does not store any [`Testcase`]s.
 #[derive(Default, Serialize, Deserialize, Clone, Debug)]
-#[serde(bound = "I: serde::de::DeserializeOwned")]
 pub struct NopCorpus<I> {
     empty: Option<CorpusId>,
     phantom: PhantomData<I>,
 }
 
-impl<I> UsesInput for NopCorpus<I>
-where
-    I: Input,
-{
+impl<I> Corpus for NopCorpus<I> {
     type Input = I;
-}
-
-impl<I> Corpus for NopCorpus<I>
-where
-    I: Input,
-{
-    /// Returns the number of elements
+    /// Returns the number of all enabled entries
     #[inline]
     fn count(&self) -> usize {
         0
     }
 
-    /// Add an entry to the corpus and return its index
+    /// Returns the number of all disabled entries
+    fn count_disabled(&self) -> usize {
+        0
+    }
+
+    /// Returns the number of all entries
+    #[inline]
+    fn count_all(&self) -> usize {
+        0
+    }
+
+    /// Add an enabled testcase to the corpus and return its index
     #[inline]
     fn add(&mut self, _testcase: Testcase<I>) -> Result<CorpusId, Error> {
         Err(Error::unsupported("Unsupported by NopCorpus"))
     }
 
-    /// Replaces the testcase at the given idx
+    /// Add a disabled testcase to the corpus and return its index
     #[inline]
-    fn replace(&mut self, _idx: CorpusId, _testcase: Testcase<I>) -> Result<Testcase<I>, Error> {
+    fn add_disabled(&mut self, _testcase: Testcase<I>) -> Result<CorpusId, Error> {
         Err(Error::unsupported("Unsupported by NopCorpus"))
     }
 
-    /// Removes an entry from the corpus, returning it if it was present.
+    /// Replaces the testcase with the given id
     #[inline]
-    fn remove(&mut self, _idx: CorpusId) -> Result<Testcase<I>, Error> {
+    fn replace(&mut self, _id: CorpusId, _testcase: Testcase<I>) -> Result<Testcase<I>, Error> {
         Err(Error::unsupported("Unsupported by NopCorpus"))
     }
 
-    /// Get by id
+    /// Removes an entry from the corpus, returning it if it was present; considers both enabled and disabled testcases
     #[inline]
-    fn get(&self, _idx: CorpusId) -> Result<&RefCell<Testcase<I>>, Error> {
+    fn remove(&mut self, _id: CorpusId) -> Result<Testcase<I>, Error> {
+        Err(Error::unsupported("Unsupported by NopCorpus"))
+    }
+
+    /// Get by id; considers only enabled testcases
+    #[inline]
+    fn get(&self, _id: CorpusId) -> Result<&RefCell<Testcase<I>>, Error> {
+        Err(Error::unsupported("Unsupported by NopCorpus"))
+    }
+
+    /// Get by id; considers both enabled and disabled testcases
+    #[inline]
+    fn get_from_all(&self, _id: CorpusId) -> Result<&RefCell<Testcase<I>>, Error> {
         Err(Error::unsupported("Unsupported by NopCorpus"))
     }
 
@@ -64,6 +76,12 @@ where
         &self.empty
     }
 
+    /// Peek the next free corpus id
+    #[inline]
+    fn peek_free_id(&self) -> CorpusId {
+        CorpusId::from(0_usize)
+    }
+
     /// Current testcase scheduled (mutable)
     #[inline]
     fn current_mut(&mut self) -> &mut Option<CorpusId> {
@@ -71,12 +89,12 @@ where
     }
 
     #[inline]
-    fn next(&self, _idx: CorpusId) -> Option<CorpusId> {
+    fn next(&self, _id: CorpusId) -> Option<CorpusId> {
         None
     }
 
     #[inline]
-    fn prev(&self, _idx: CorpusId) -> Option<CorpusId> {
+    fn prev(&self, _id: CorpusId) -> Option<CorpusId> {
         None
     }
 
@@ -90,8 +108,15 @@ where
         None
     }
 
+    /// Get the nth corpus id; considers only enabled testcases
     #[inline]
     fn nth(&self, _nth: usize) -> CorpusId {
+        CorpusId::from(0_usize)
+    }
+
+    /// Get the nth corpus id; considers both enabled and disabled testcases
+    #[inline]
+    fn nth_from_all(&self, _nth: usize) -> CorpusId {
         CorpusId::from(0_usize)
     }
 
@@ -106,10 +131,7 @@ where
     }
 }
 
-impl<I> NopCorpus<I>
-where
-    I: Input,
-{
+impl<I> NopCorpus<I> {
     /// Creates a new [`NopCorpus`].
     #[must_use]
     pub fn new() -> Self {

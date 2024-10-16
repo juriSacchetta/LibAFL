@@ -1,6 +1,8 @@
 //! Signal handling for unix
 #[cfg(feature = "alloc")]
 use alloc::vec::Vec;
+#[cfg(all(target_vendor = "apple", target_arch = "aarch64"))]
+use core::mem::size_of;
 #[cfg(feature = "alloc")]
 use core::{
     cell::UnsafeCell,
@@ -18,7 +20,10 @@ use std::ffi::CString;
 #[cfg(target_arch = "arm")]
 pub use libc::c_ulong;
 #[cfg(feature = "std")]
-use nix::errno::{errno, Errno};
+use nix::errno::Errno;
+
+/// The special exit code when the target exited through ctrl-c
+pub const CTRL_C_EXIT: i32 = 100;
 
 /// ARMv7-specific representation of a saved context
 #[cfg(target_arch = "arm")]
@@ -157,7 +162,7 @@ pub struct arm_thread_state64 {
 //#[repr(align(16))]
 pub struct arm_neon_state64 {
     /// opaque
-    pub opaque: [u8; (32 * 16) + (2 * mem::size_of::<u32>())],
+    pub opaque: [u8; (32 * 16) + (2 * size_of::<u32>())],
 }
 
 /// ```c
@@ -263,7 +268,7 @@ use crate::Error;
 
 extern "C" {
     /// The `libc` `getcontext`
-    /// For some reason, it's not available on MacOS.
+    /// For some reason, it's not available on `MacOS`.
     ///
     fn getcontext(ucp: *mut ucontext_t) -> c_int;
 }
@@ -300,6 +305,19 @@ pub enum Signal {
     SigInterrupt = SIGINT,
     /// `SIGTRAP` signal id
     SigTrap = SIGTRAP,
+}
+
+#[cfg(feature = "std")]
+impl Signal {
+    /// Handle an incoming signal
+    pub fn handle(&self) {
+        match self {
+            Signal::SigInterrupt | Signal::SigQuit | Signal::SigTerm => {
+                std::process::exit(CTRL_C_EXIT)
+            }
+            _ => {}
+        }
+    }
 }
 
 impl TryFrom<&str> for Signal {
@@ -369,16 +387,25 @@ impl Display for Signal {
 
 /// A trait for `LibAFL` signal handling
 #[cfg(feature = "alloc")]
-pub trait Handler {
+pub trait SignalHandler {
     /// Handle a signal
-    fn handle(&mut self, signal: Signal, info: &mut siginfo_t, _context: Option<&mut ucontext_t>);
+    ///
+    /// # Safety
+    /// This is generally not safe to call. It should only be called through the signal it was registered for.
+    /// Signal handling is hard, don't mess with it :).
+    unsafe fn handle(
+        &mut self,
+        signal: Signal,
+        info: &mut siginfo_t,
+        _context: Option<&mut ucontext_t>,
+    );
     /// Return a list of signals to handle
     fn signals(&self) -> Vec<Signal>;
 }
 
 #[cfg(feature = "alloc")]
 struct HandlerHolder {
-    handler: UnsafeCell<*mut dyn Handler>,
+    handler: UnsafeCell<*mut dyn SignalHandler>,
 }
 
 #[cfg(feature = "alloc")]
@@ -423,6 +450,7 @@ unsafe fn handle_signal(sig: c_int, info: *mut siginfo_t, void: *mut c_void) {
 }
 
 /// Setup signal handlers in a somewhat rusty way.
+///
 /// This will allocate a signal stack and set the signal handlers accordingly.
 /// It is, for example, used in `LibAFL's` `InProcessExecutor` to restart the fuzzer in case of a crash,
 /// or to handle `SIGINT` in the broker process.
@@ -433,7 +461,9 @@ unsafe fn handle_signal(sig: c_int, info: *mut siginfo_t, void: *mut c_void) {
 /// The handler pointer will be dereferenced, and the data the pointer points to may therefore not move.
 /// A lot can go south in signal handling. Be sure you know what you are doing.
 #[cfg(feature = "alloc")]
-pub unsafe fn setup_signal_handler<T: 'static + Handler>(handler: *mut T) -> Result<(), Error> {
+pub unsafe fn setup_signal_handler<T: 'static + SignalHandler>(
+    handler: *mut T,
+) -> Result<(), Error> {
     // First, set up our own stack to be used during segfault handling. (and specify `SA_ONSTACK` in `sigaction`)
     if SIGNAL_STACK_PTR.is_null() {
         SIGNAL_STACK_PTR = malloc(SIGNAL_STACK_SIZE);
@@ -459,7 +489,7 @@ pub unsafe fn setup_signal_handler<T: 'static + Handler>(handler: *mut T) -> Res
         write_volatile(
             addr_of_mut!(SIGNAL_HANDLERS[sig as usize]),
             Some(HandlerHolder {
-                handler: UnsafeCell::new(handler as *mut dyn Handler),
+                handler: UnsafeCell::new(handler as *mut dyn SignalHandler),
             }),
         );
 
@@ -478,6 +508,7 @@ pub unsafe fn setup_signal_handler<T: 'static + Handler>(handler: *mut T) -> Res
 }
 
 /// Function to get the current [`ucontext_t`] for this process.
+///
 /// This calls the libc `getcontext` function under the hood.
 /// It can be useful, for example for `dump_regs`.
 /// Note that calling this method may, of course, alter the state.
@@ -488,7 +519,7 @@ pub unsafe fn setup_signal_handler<T: 'static + Handler>(handler: *mut T) -> Res
 #[inline(always)]
 pub fn ucontext() -> Result<ucontext_t, Error> {
     let mut ucontext = unsafe { mem::zeroed() };
-    if cfg!(not(target_os = "openbsd")) {
+    if cfg!(not(any(target_os = "openbsd", target_os = "haiku"))) {
         if unsafe { getcontext(&mut ucontext) } == 0 {
             Ok(ucontext)
         } else {
@@ -502,7 +533,7 @@ pub fn ucontext() -> Result<ucontext_t, Error> {
             #[cfg(feature = "std")]
             Err(Error::unknown(format!(
                 "Failed to get ucontext: {:?}",
-                Errno::from_i32(errno())
+                Errno::last()
             )))
         }
     } else {

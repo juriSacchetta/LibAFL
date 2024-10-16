@@ -1,14 +1,15 @@
 //! Whole corpus minimizers, for reducing the number of samples/the total size/the average runtime
 //! of your corpus.
 
-use alloc::{
-    string::{String, ToString},
-    vec::Vec,
-};
+use alloc::{borrow::Cow, string::ToString, vec::Vec};
 use core::{hash::Hash, marker::PhantomData};
 
 use hashbrown::{HashMap, HashSet};
-use libafl_bolts::{current_time, tuples::MatchName, AsIter, Named};
+use libafl_bolts::{
+    current_time,
+    tuples::{Handle, Handled},
+    AsIter, Named,
+};
 use num_traits::ToPrimitive;
 use z3::{ast::Bool, Config, Context, Optimize};
 
@@ -19,79 +20,52 @@ use crate::{
     monitors::{AggregatorOps, UserStats, UserStatsValue},
     observers::{MapObserver, ObserversTuple},
     schedulers::{LenTimeMulTestcaseScore, RemovableScheduler, Scheduler, TestcaseScore},
-    state::{HasCorpus, HasExecutions, HasMetadata, UsesState},
-    Error, HasScheduler,
+    state::{HasCorpus, HasExecutions, UsesState},
+    Error, HasMetadata, HasScheduler,
 };
-
-/// `CorpusMinimizers` minimize corpora according to internal logic. See various implementations for
-/// details.
-pub trait CorpusMinimizer<E>
-where
-    E: UsesState,
-    E::State: HasCorpus,
-{
-    /// Minimize the corpus of the provided state.
-    fn minimize<CS, EM, Z>(
-        &self,
-        fuzzer: &mut Z,
-        executor: &mut E,
-        manager: &mut EM,
-        state: &mut E::State,
-    ) -> Result<(), Error>
-    where
-        E: Executor<EM, Z> + HasObservers,
-        CS: Scheduler<State = E::State> + RemovableScheduler, // schedulers that has on_remove/on_replace only!
-        EM: EventFirer<State = E::State>,
-        Z: HasScheduler<Scheduler = CS, State = E::State>;
-}
 
 /// Minimizes a corpus according to coverage maps, weighting by the specified `TestcaseScore`.
 ///
 /// Algorithm based on WMOPT: <https://hexhive.epfl.ch/publications/files/21ISSTA2.pdf>
 #[derive(Debug)]
-pub struct MapCorpusMinimizer<E, O, T, TS>
-where
-    E: UsesState,
-    E::State: HasCorpus + HasMetadata,
-    TS: TestcaseScore<E::State>,
-{
-    obs_name: String,
+pub struct MapCorpusMinimizer<C, E, O, T, TS> {
+    observer_handle: Handle<C>,
     phantom: PhantomData<(E, O, T, TS)>,
 }
 
 /// Standard corpus minimizer, which weights inputs by length and time.
-pub type StdCorpusMinimizer<E, O, T> =
-    MapCorpusMinimizer<E, O, T, LenTimeMulTestcaseScore<<E as UsesState>::State>>;
+pub type StdCorpusMinimizer<C, E, O, T> = MapCorpusMinimizer<C, E, O, T, LenTimeMulTestcaseScore>;
 
-impl<E, O, T, TS> MapCorpusMinimizer<E, O, T, TS>
+impl<C, E, O, T, TS> MapCorpusMinimizer<C, E, O, T, TS>
 where
     E: UsesState,
     E::State: HasCorpus + HasMetadata,
     TS: TestcaseScore<E::State>,
+    C: Named,
 {
     /// Constructs a new `MapCorpusMinimizer` from a provided observer. This observer will be used
     /// in the future to get observed maps from an executed input.
-    pub fn new(obs: &O) -> Self
-    where
-        O: Named,
-    {
+    pub fn new(obs: &C) -> Self {
         Self {
-            obs_name: obs.name().to_string(),
+            observer_handle: obs.handle(),
             phantom: PhantomData,
         }
     }
 }
 
-impl<E, O, T, TS> CorpusMinimizer<E> for MapCorpusMinimizer<E, O, T, TS>
+impl<C, E, O, T, TS> MapCorpusMinimizer<C, E, O, T, TS>
 where
     E: UsesState,
     for<'a> O: MapObserver<Entry = T> + AsIter<'a, Item = T>,
+    C: AsRef<O>,
     E::State: HasMetadata + HasCorpus + HasExecutions,
+    <<E as UsesState>::State as HasCorpus>::Corpus: Corpus<Input = E::Input>,
     T: Copy + Hash + Eq,
     TS: TestcaseScore<E::State>,
 {
+    /// Do the minimization
     #[allow(clippy::too_many_lines)]
-    fn minimize<CS, EM, Z>(
+    pub fn minimize<CS, EM, Z>(
         &self,
         fuzzer: &mut Z,
         executor: &mut E,
@@ -100,10 +74,14 @@ where
     ) -> Result<(), Error>
     where
         E: Executor<EM, Z> + HasObservers,
-        CS: Scheduler<State = E::State> + RemovableScheduler,
+        E::Observers: ObserversTuple<E::Input, E::State>,
+        CS: Scheduler<E::Input, E::State> + RemovableScheduler<E::Input, E::State>,
         EM: EventFirer<State = E::State>,
         Z: HasScheduler<Scheduler = CS, State = E::State>,
     {
+        // don't delete this else it won't work after restart
+        let current = *state.corpus().current();
+
         let cfg = Config::default();
         let ctx = Context::new(&cfg);
         let opt = Optimize::new(&ctx);
@@ -121,9 +99,9 @@ where
 
         let total = state.corpus().count() as u64;
         let mut curr = 0;
-        while let Some(idx) = cur_id {
+        while let Some(id) = cur_id {
             let (weight, input) = {
-                let mut testcase = state.corpus().get(idx)?.borrow_mut();
+                let mut testcase = state.corpus().get(id)?.borrow_mut();
                 let weight = TS::compute(state, &mut *testcase)?
                     .to_u64()
                     .expect("Weight must be computable.");
@@ -149,7 +127,7 @@ where
             manager.fire(
                 state,
                 Event::UpdateUserStats {
-                    name: "minimisation exec pass".to_string(),
+                    name: Cow::from("minimisation exec pass"),
                     value: UserStats::new(UserStatsValue::Ratio(curr, total), AggregatorOps::None),
                     phantom: PhantomData,
                 },
@@ -165,14 +143,12 @@ where
             )?;
 
             let seed_expr = Bool::fresh_const(&ctx, "seed");
-            let obs: &O = executor
-                .observers()
-                .match_name::<O>(&self.obs_name)
-                .expect("Observer must be present.");
+            let observers = executor.observers();
+            let obs = observers[&self.observer_handle].as_ref();
 
             // Store coverage, mapping coverage map indices to hit counts (if present) and the
             // associated seeds for the map indices with those hit counts.
-            for (i, e) in obs.as_iter().copied().enumerate() {
+            for (i, e) in obs.as_iter().map(|x| *x).enumerate() {
                 if e != obs.initial() {
                     cov_map
                         .entry(i)
@@ -184,9 +160,9 @@ where
             }
 
             // Keep track of that seed's index and weight
-            seed_exprs.insert(seed_expr, (idx, weight));
+            seed_exprs.insert(seed_expr, (id, weight));
 
-            cur_id = state.corpus().next(idx);
+            cur_id = state.corpus().next(id);
         }
 
         manager.log(
@@ -222,22 +198,28 @@ where
 
         let res = if let Some(model) = opt.get_model() {
             let mut removed = Vec::with_capacity(state.corpus().count());
-            for (seed, (idx, _)) in seed_exprs {
+            for (seed, (id, _)) in seed_exprs {
                 // if the model says the seed isn't there, mark it for deletion
                 if !model.eval(&seed, true).unwrap().as_bool().unwrap() {
-                    removed.push(idx);
+                    removed.push(id);
                 }
             }
             // reverse order; if indexes are stored in a vec, we need to remove from back to front
-            removed.sort_unstable_by(|idx1, idx2| idx2.cmp(idx1));
-            for idx in removed {
-                let removed = state.corpus_mut().remove(idx)?;
+            removed.sort_unstable_by(|id1, id2| id2.cmp(id1));
+            for id in removed {
+                if let Some(_cur) = current {
+                    continue;
+                }
+
+                let removed = state.corpus_mut().remove(id)?;
                 // scheduler needs to know we've removed the input, or it will continue to try
                 // to use now-missing inputs
                 fuzzer
                     .scheduler_mut()
-                    .on_remove(state, idx, &Some(removed))?;
+                    .on_remove(state, id, &Some(removed))?;
             }
+
+            *state.corpus_mut().current_mut() = None; //we may have removed the current ID from the corpus
             Ok(())
         } else {
             Err(Error::unknown("Corpus minimization failed; unsat."))

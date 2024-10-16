@@ -7,6 +7,7 @@ use core::{
     marker::PhantomData,
     num::NonZeroUsize,
     sync::atomic::{compiler_fence, Ordering},
+    time::Duration,
 };
 use std::{
     env,
@@ -15,18 +16,22 @@ use std::{
     sync::Arc,
 };
 
+#[cfg(feature = "tcp_compression")]
+use libafl_bolts::compress::GzipCompressor;
 #[cfg(feature = "std")]
 use libafl_bolts::core_affinity::CoreId;
 #[cfg(all(feature = "std", any(windows, not(feature = "fork"))))]
 use libafl_bolts::os::startable_self;
 #[cfg(all(unix, feature = "std", not(miri)))]
 use libafl_bolts::os::unix_signals::setup_signal_handler;
+#[cfg(feature = "std")]
+use libafl_bolts::os::CTRL_C_EXIT;
 #[cfg(all(feature = "std", feature = "fork", unix))]
 use libafl_bolts::os::{fork, ForkResult};
 use libafl_bolts::{shmem::ShMemProvider, tuples::tuple_list, ClientId};
 #[cfg(feature = "std")]
 use libafl_bolts::{shmem::StdShMemProvider, staterestore::StateRestorer};
-use serde::{de::DeserializeOwned, Deserialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     sync::{broadcast, broadcast::error::RecvError, mpsc},
@@ -36,20 +41,21 @@ use tokio::{
 use typed_builder::TypedBuilder;
 
 use super::{CustomBufEventResult, CustomBufHandlerFn};
-#[cfg(all(unix, feature = "std"))]
+#[cfg(all(unix, feature = "std", not(miri)))]
 use crate::events::EVENTMGR_SIGHANDLER_STATE;
 use crate::{
     events::{
-        hooks::EventManagerHooksTuple, BrokerEventResult, Event, EventConfig, EventFirer,
-        EventManager, EventManagerId, EventProcessor, EventRestarter, HasCustomBufHandlers,
-        HasEventManagerId, ProgressReporter,
+        BrokerEventResult, Event, EventConfig, EventFirer, EventManager, EventManagerHooksTuple,
+        EventManagerId, EventProcessor, EventRestarter, HasCustomBufHandlers, HasEventManagerId,
+        ProgressReporter,
     },
     executors::{Executor, HasObservers},
     fuzzer::{EvaluatorObservers, ExecutionProcessor},
     inputs::{Input, UsesInput},
     monitors::Monitor,
-    state::{HasExecutions, HasLastReportTime, HasMetadata, State, UsesState},
-    Error,
+    observers::ObserversTuple,
+    state::{HasExecutions, HasImported, HasLastReportTime, State, UsesState},
+    Error, HasMetadata,
 };
 
 /// Tries to create (synchronously) a [`TcpListener`] that is `nonblocking` (for later use in tokio).
@@ -107,8 +113,9 @@ where
     }
 
     /// Run in the broker until all clients exit
+    // TODO: remove allow(clippy::needless_return) when clippy is fixed
     #[tokio::main(flavor = "current_thread")]
-    #[allow(clippy::too_many_lines)]
+    #[allow(clippy::too_many_lines, clippy::needless_return)]
     pub async fn broker_loop(&mut self) -> Result<(), Error> {
         let (tx_bc, rx) = broadcast::channel(65536);
         let (tx, mut rx_mpsc) = mpsc::channel(65536);
@@ -182,8 +189,7 @@ where
                         // we forward the sender id as well, so we add 4 bytes to the message length
                         len += 4;
 
-                        #[cfg(feature = "tcp_debug")]
-                        println!("len +4 = {len:?}");
+                        log::debug!("TCP Manager - len +4 = {len:?}");
 
                         let mut buf = vec![0; len as usize];
 
@@ -198,8 +204,7 @@ where
                             return;
                         }
 
-                        #[cfg(feature = "tcp_debug")]
-                        println!("len: {len:?} - {buf:?}");
+                        log::debug!("TCP Manager - len: {len:?} - {buf:?}");
                         tx_inner.send(buf).await.expect("Could not send");
                     }
                 };
@@ -232,8 +237,7 @@ where
                             _ => panic!("Could not receive"),
                         };
 
-                        #[cfg(feature = "tcp_debug")]
-                        println!("{buf:?}");
+                        log::debug!("TCP Manager - {buf:?}");
 
                         if buf.len() <= 4 {
                             log::warn!("We got no contents (or only the length) in a broadcast");
@@ -241,9 +245,7 @@ where
                         }
 
                         if buf[..4] == this_client_id_bytes {
-                            #[cfg(feature = "tcp_debug")]
-                            eprintln!(
-                            "Not forwarding message from this very client ({this_client_id:?})."
+                            log::debug!("TCP Manager - Not forwarding message from this very client ({this_client_id:?})."
                         );
                             continue;
                         }
@@ -287,8 +289,12 @@ where
             // cut off the ID.
             let event_bytes = &buf[4..];
 
-            let event: Event<I> = postcard::from_bytes(event_bytes).unwrap();
-            match Self::handle_in_broker(&mut self.monitor, client_id, &event).unwrap() {
+            #[cfg(feature = "tcp_compression")]
+            let event_bytes = GzipCompressor::new().decompress(event_bytes)?;
+
+            #[allow(clippy::needless_borrow)] // make decompressed vec and slice compatible
+            let event: Event<I> = postcard::from_bytes(&event_bytes)?;
+            match Self::handle_in_broker(&mut self.monitor, client_id, &event)? {
                 BrokerEventResult::Forward => {
                     tx_bc.send(buf).expect("Could not send");
                 }
@@ -300,9 +306,7 @@ where
                 break;
             }
         }
-
-        #[cfg(feature = "tcp_debug")]
-        println!("The last client quit. Exiting.");
+        log::info!("TCP Manager - The last client quit. Exiting.");
 
         Err(Error::shutting_down())
     }
@@ -316,14 +320,9 @@ where
     ) -> Result<BrokerEventResult, Error> {
         match &event {
             Event::NewTestcase {
-                input: _,
-                client_config: _,
-                exit_kind: _,
                 corpus_size,
-                observers_buf: _,
-                time,
-                executions,
                 forward_id,
+                ..
             } => {
                 let id = if let Some(id) = *forward_id {
                     id
@@ -333,7 +332,6 @@ where
                 monitor.client_stats_insert(id);
                 let client = monitor.client_stats_mut_for(id);
                 client.update_corpus_size(*corpus_size as u64);
-                client.update_executions(*executions, *time);
                 monitor.display(event.name(), id);
                 Ok(BrokerEventResult::Forward)
             }
@@ -386,15 +384,10 @@ where
                 // Correctly handled the event
                 Ok(BrokerEventResult::Handled)
             }
-            Event::Objective {
-                objective_size,
-                executions,
-                time,
-            } => {
+            Event::Objective { objective_size, .. } => {
                 monitor.client_stats_insert(client_id);
                 let client = monitor.client_stats_mut_for(client_id);
                 client.update_objective_size(*objective_size as u64);
-                client.update_executions(*executions, *time);
                 monitor.display(event.name(), client_id);
                 Ok(BrokerEventResult::Handled)
             }
@@ -408,7 +401,7 @@ where
                 log::log!((*severity_level).into(), "{message}");
                 Ok(BrokerEventResult::Handled)
             }
-            Event::CustomBuf { .. } => Ok(BrokerEventResult::Forward),
+            Event::CustomBuf { .. } | Event::Stop => Ok(BrokerEventResult::Forward),
             //_ => Ok(BrokerEventResult::Forward),
         }
     }
@@ -420,6 +413,10 @@ where
     EMH: EventManagerHooksTuple<S>,
     S: State,
 {
+    /// We send message every `throttle` second
+    throttle: Option<Duration>,
+    /// When we sent the last message
+    last_sent: Duration,
     hooks: EMH,
     /// The TCP stream for inter process communication
     tcp: TcpStream,
@@ -434,6 +431,126 @@ where
     /// from nodes with other configurations.
     configuration: EventConfig,
     phantom: PhantomData<S>,
+}
+
+impl<S> TcpEventManager<(), S>
+where
+    S: State,
+{
+    /// Create a builder for [`TcpEventManager`]
+    #[must_use]
+    pub fn builder() -> TcpEventManagerBuilder<(), S> {
+        TcpEventManagerBuilder::new()
+    }
+}
+
+/// Builder for `TcpEventManager`
+#[derive(Debug, Copy, Clone)]
+pub struct TcpEventManagerBuilder<EMH, S> {
+    throttle: Option<Duration>,
+    hooks: EMH,
+    phantom: PhantomData<S>,
+}
+
+impl<S> Default for TcpEventManagerBuilder<(), S> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<S> TcpEventManagerBuilder<(), S> {
+    /// Set the constructor
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            throttle: None,
+            hooks: (),
+            phantom: PhantomData,
+        }
+    }
+
+    /// Set the hooks
+    #[must_use]
+    pub fn hooks<EMH>(self, hooks: EMH) -> TcpEventManagerBuilder<EMH, S> {
+        TcpEventManagerBuilder {
+            throttle: self.throttle,
+            hooks,
+            phantom: PhantomData,
+        }
+    }
+}
+
+impl<EMH, S> TcpEventManagerBuilder<EMH, S>
+where
+    EMH: EventManagerHooksTuple<S>,
+    S: State + HasExecutions + HasMetadata,
+{
+    /// Set the throttle
+    #[must_use]
+    pub fn throttle(mut self, throttle: Duration) -> Self {
+        self.throttle = Some(throttle);
+        self
+    }
+
+    /// Create a manager from a raw TCP client with hooks
+    pub fn build_from_client<A: ToSocketAddrs>(
+        self,
+        addr: &A,
+        client_id: ClientId,
+        configuration: EventConfig,
+    ) -> Result<TcpEventManager<EMH, S>, Error> {
+        let mut tcp = TcpStream::connect(addr)?;
+
+        let mut our_client_id_buf = client_id.0.to_le_bytes();
+        tcp.write_all(&our_client_id_buf)
+            .expect("Cannot write to the broker");
+
+        tcp.read_exact(&mut our_client_id_buf)
+            .expect("Cannot read from the broker");
+        let client_id = ClientId(u32::from_le_bytes(our_client_id_buf));
+
+        log::info!("Our client id: {client_id:?}");
+
+        Ok(TcpEventManager {
+            throttle: self.throttle,
+            last_sent: Duration::from_secs(0),
+            hooks: self.hooks,
+            tcp,
+            client_id,
+            #[cfg(feature = "tcp_compression")]
+            compressor: GzipCompressor::new(),
+            configuration,
+            phantom: PhantomData,
+            custom_buf_handlers: vec![],
+        })
+    }
+
+    /// Create an TCP event manager on a port specifying the client id with hooks
+    ///
+    /// If the port is not yet bound, it will act as a broker; otherwise, it
+    /// will act as a client.
+    pub fn build_on_port(
+        self,
+        port: u16,
+        client_id: ClientId,
+        configuration: EventConfig,
+    ) -> Result<TcpEventManager<EMH, S>, Error> {
+        Self::build_from_client(self, &("127.0.0.1", port), client_id, configuration)
+    }
+
+    /// Create an TCP event manager on a port specifying the client id from env with hooks
+    ///
+    /// If the port is not yet bound, it will act as a broker; otherwise, it
+    /// will act as a client.
+    pub fn build_existing_from_env<A: ToSocketAddrs>(
+        self,
+        addr: &A,
+        env_name: &str,
+        configuration: EventConfig,
+    ) -> Result<TcpEventManager<EMH, S>, Error> {
+        let this_id = ClientId(str::parse::<u32>(&env::var(env_name)?)?);
+        Self::build_from_client(self, addr, this_id, configuration)
+    }
 }
 
 impl<EMH, S> core::fmt::Debug for TcpEventManager<EMH, S>
@@ -465,147 +582,11 @@ where
     }
 }
 
-impl<S> TcpEventManager<(), S>
-where
-    S: State + HasExecutions + HasMetadata,
-{
-    /// Create a manager from a raw TCP client specifying the client id
-    pub fn existing<A: ToSocketAddrs>(
-        addr: &A,
-        client_id: ClientId,
-        configuration: EventConfig,
-    ) -> Result<Self, Error> {
-        Self::existing_with_hooks(addr, client_id, configuration, tuple_list!())
-    }
-
-    /// Create a manager from a raw TCP client
-    pub fn new<A: ToSocketAddrs>(addr: &A, configuration: EventConfig) -> Result<Self, Error> {
-        Self::existing_with_hooks(addr, UNDEFINED_CLIENT_ID, configuration, tuple_list!())
-    }
-
-    /// Create an TCP event manager on a port specifying the client id
-    ///
-    /// If the port is not yet bound, it will act as a broker; otherwise, it
-    /// will act as a client.
-    pub fn existing_on_port(
-        port: u16,
-        client_id: ClientId,
-        configuration: EventConfig,
-    ) -> Result<Self, Error> {
-        Self::existing_with_hooks(
-            &("127.0.0.1", port),
-            client_id,
-            configuration,
-            tuple_list!(),
-        )
-    }
-
-    /// Create an TCP event manager on a port with hooks
-    ///
-    /// If the port is not yet bound, it will act as a broker; otherwise, it
-    /// will act as a client.
-    pub fn on_port(port: u16, configuration: EventConfig) -> Result<Self, Error> {
-        Self::with_hooks(&("127.0.0.1", port), configuration, tuple_list!())
-    }
-
-    /// Create an TCP event manager on a port specifying the client id from env
-    ///
-    /// If the port is not yet bound, it will act as a broker; otherwise, it
-    /// will act as a client.
-    pub fn existing_from_env<A: ToSocketAddrs>(
-        addr: &A,
-        env_name: &str,
-        configuration: EventConfig,
-    ) -> Result<Self, Error> {
-        let this_id = ClientId(str::parse::<u32>(&env::var(env_name)?)?);
-        Self::existing_with_hooks(addr, this_id, configuration, tuple_list!())
-    }
-}
-
 impl<EMH, S> TcpEventManager<EMH, S>
 where
     EMH: EventManagerHooksTuple<S>,
-    S: State + HasExecutions + HasMetadata,
+    S: State + HasExecutions + HasMetadata + HasImported,
 {
-    /// Create a manager from a raw TCP client specifying the client id with hooks
-    pub fn existing_with_hooks<A: ToSocketAddrs>(
-        addr: &A,
-        client_id: ClientId,
-        configuration: EventConfig,
-        hooks: EMH,
-    ) -> Result<Self, Error> {
-        let mut tcp = TcpStream::connect(addr)?;
-
-        let mut our_client_id_buf = client_id.0.to_le_bytes();
-        tcp.write_all(&our_client_id_buf)
-            .expect("Cannot write to the broker");
-
-        tcp.read_exact(&mut our_client_id_buf)
-            .expect("Cannot read from the broker");
-        let client_id = ClientId(u32::from_le_bytes(our_client_id_buf));
-
-        println!("Our client id: {client_id:?}");
-
-        Ok(Self {
-            hooks,
-            tcp,
-            client_id,
-            #[cfg(feature = "tcp_compression")]
-            compressor: GzipCompressor::new(COMPRESS_THRESHOLD),
-            configuration,
-            phantom: PhantomData,
-            custom_buf_handlers: vec![],
-        })
-    }
-
-    /// Create a manager from a raw TCP client with hooks
-    pub fn with_hooks<A: ToSocketAddrs>(
-        addr: &A,
-        configuration: EventConfig,
-        hooks: EMH,
-    ) -> Result<Self, Error> {
-        Self::existing_with_hooks(addr, UNDEFINED_CLIENT_ID, configuration, hooks)
-    }
-
-    /// Create an TCP event manager on a port specifying the client id with hooks
-    ///
-    /// If the port is not yet bound, it will act as a broker; otherwise, it
-    /// will act as a client.
-    pub fn existing_on_port_with_hooks(
-        port: u16,
-        client_id: ClientId,
-        configuration: EventConfig,
-        hooks: EMH,
-    ) -> Result<Self, Error> {
-        Self::existing_with_hooks(&("127.0.0.1", port), client_id, configuration, hooks)
-    }
-
-    /// Create an TCP event manager on a port with hooks
-    ///
-    /// If the port is not yet bound, it will act as a broker; otherwise, it
-    /// will act as a client.
-    pub fn on_port_with_hooks(
-        port: u16,
-        configuration: EventConfig,
-        hooks: EMH,
-    ) -> Result<Self, Error> {
-        Self::with_hooks(&("127.0.0.1", port), configuration, hooks)
-    }
-
-    /// Create an TCP event manager on a port specifying the client id from env with hooks
-    ///
-    /// If the port is not yet bound, it will act as a broker; otherwise, it
-    /// will act as a client.
-    pub fn existing_from_env_with_hooks<A: ToSocketAddrs>(
-        addr: &A,
-        env_name: &str,
-        configuration: EventConfig,
-        hooks: EMH,
-    ) -> Result<Self, Error> {
-        let this_id = ClientId(str::parse::<u32>(&env::var(env_name)?)?);
-        Self::existing_with_hooks(addr, this_id, configuration, hooks)
-    }
-
     /// Write the client id for a client [`EventManager`] to env vars
     pub fn to_env(&self, env_name: &str) {
         env::set_var(env_name, format!("{}", self.client_id.0));
@@ -622,9 +603,11 @@ where
         event: Event<S::Input>,
     ) -> Result<(), Error>
     where
-        E: Executor<Self, Z> + HasObservers<State = S>,
+        E: Executor<Self, Z, State = S> + HasObservers,
+        E::Observers: Serialize + ObserversTuple<S::Input, S>,
         for<'a> E::Observers: Deserialize<'a>,
-        Z: ExecutionProcessor<E::Observers, State = S> + EvaluatorObservers<E::Observers>,
+        Z: ExecutionProcessor<Self, E::Observers, State = S>
+            + EvaluatorObservers<Self, E::Observers>,
     {
         if !self.hooks.pre_exec_all(state, client_id, &event)? {
             return Ok(());
@@ -634,11 +617,9 @@ where
                 input,
                 client_config,
                 exit_kind,
-                corpus_size: _,
                 observers_buf,
-                time: _,
-                executions: _,
                 forward_id,
+                ..
             } => {
                 log::info!("Received new Testcase from {client_id:?} ({client_config:?}, forward {forward_id:?})");
 
@@ -651,17 +632,17 @@ where
                     {
                         state.scalability_monitor_mut().testcase_with_observers += 1;
                     }
-                    fuzzer.process_execution(state, self, input, &observers, &exit_kind, false)?
+                    fuzzer.evaluate_execution(state, self, input, &observers, &exit_kind, false)?
                 } else {
                     #[cfg(feature = "scalability_introspection")]
                     {
                         state.scalability_monitor_mut().testcase_without_observers += 1;
                     }
-                    fuzzer.evaluate_input_with_observers::<E, Self>(
-                        state, executor, self, input, false,
-                    )?
+                    fuzzer
+                        .evaluate_input_with_observers::<E>(state, executor, self, input, false)?
                 };
                 if let Some(item) = _res.1 {
+                    *state.imported_mut() += 1;
                     log::info!("Added received Testcase as item #{item}");
                 }
             }
@@ -671,6 +652,9 @@ where
                         break;
                     }
                 }
+            }
+            Event::Stop => {
+                state.request_stop();
             }
             _ => {
                 return Err(Error::unknown(format!(
@@ -712,41 +696,30 @@ where
     EMH: EventManagerHooksTuple<S>,
     S: State,
 {
-    #[cfg(feature = "tcp_compression")]
-    fn fire(
-        &mut self,
-        _state: &mut Self::State,
-        event: Event<<Self::State as UsesInput>::Input>,
-    ) -> Result<(), Error> {
-        let serialized = postcard::to_allocvec(&event)?;
-        let flags = TCP_FLAG_INITIALIZED;
-
-        match self.compressor.compress(&serialized)? {
-            Some(comp_buf) => {
-                self.tcp.send_buf_with_flags(
-                    TCP_TAG_EVENT_TO_BOTH,
-                    flags | TCP_FLAG_COMPRESSED,
-                    &comp_buf,
-                )?;
-            }
-            None => {
-                self.tcp.send_buf(TCP_TAG_EVENT_TO_BOTH, &serialized)?;
-            }
+    fn should_send(&self) -> bool {
+        if let Some(throttle) = self.throttle {
+            libafl_bolts::current_time() - self.last_sent > throttle
+        } else {
+            true
         }
-        Ok(())
     }
 
-    #[cfg(not(feature = "tcp_compression"))]
     fn fire(
         &mut self,
         _state: &mut Self::State,
         event: Event<<Self::State as UsesInput>::Input>,
     ) -> Result<(), Error> {
         let serialized = postcard::to_allocvec(&event)?;
-        let size = u32::try_from(serialized.len()).unwrap();
+
+        #[cfg(feature = "tcp_compression")]
+        let serialized = self.compressor.compress(&serialized);
+
+        let size = u32::try_from(serialized.len())?;
         self.tcp.write_all(&size.to_le_bytes())?;
         self.tcp.write_all(&self.client_id.0.to_le_bytes())?;
         self.tcp.write_all(&serialized)?;
+
+        self.last_sent = libafl_bolts::current_time();
         Ok(())
     }
 
@@ -770,11 +743,13 @@ where
 
 impl<E, EMH, S, Z> EventProcessor<E, Z> for TcpEventManager<EMH, S>
 where
-    E: HasObservers<State = S> + Executor<Self, Z>,
+    E: HasObservers + Executor<Self, Z, State = S>,
+    E::Observers: Serialize + ObserversTuple<S::Input, S>,
     for<'a> E::Observers: Deserialize<'a>,
     EMH: EventManagerHooksTuple<S>,
-    S: State + HasExecutions + HasMetadata,
-    Z: EvaluatorObservers<E::Observers, State = S> + ExecutionProcessor<E::Observers, State = S>,
+    S: State + HasExecutions + HasMetadata + HasImported,
+    Z: EvaluatorObservers<Self, E::Observers, State = S>
+        + ExecutionProcessor<Self, E::Observers, State = S>,
 {
     fn process(
         &mut self,
@@ -795,8 +770,8 @@ where
                 Ok(()) => {
                     self.tcp.set_nonblocking(false).expect("set to blocking");
                     let len = u32::from_le_bytes(len_buf);
-                    let mut buf = vec![0_u8; len as usize + 4_usize];
-                    self.tcp.read_exact(&mut buf).unwrap();
+                    let mut buf = vec![0_u8; 4_usize + len as usize];
+                    self.tcp.read_exact(&mut buf)?;
 
                     let mut client_id_buf = [0_u8; 4];
                     client_id_buf.copy_from_slice(&buf[..4]);
@@ -809,7 +784,14 @@ where
                     } else {
                         log::info!("{self_id:?} (from {other_client_id:?}) Received: {buf:?}");
 
-                        let event = postcard::from_bytes(&buf[4..])?;
+                        let buf = &buf[4..];
+                        #[cfg(feature = "tcp_compression")]
+                        let buf = self.compressor.decompress(buf)?;
+
+                        // make decompressed vec and slice compatible
+                        #[allow(clippy::needless_borrow)]
+                        let event = postcard::from_bytes(&buf)?;
+
                         self.handle_in_client(fuzzer, executor, state, other_client_id, event)?;
                         count += 1;
                     }
@@ -828,15 +810,21 @@ where
 
         Ok(count)
     }
+
+    fn on_shutdown(&mut self) -> Result<(), Error> {
+        self.send_exiting()
+    }
 }
 
 impl<E, EMH, S, Z> EventManager<E, Z> for TcpEventManager<EMH, S>
 where
-    E: HasObservers<State = S> + Executor<Self, Z>,
+    E: HasObservers + Executor<Self, Z, State = S>,
+    E::Observers: Serialize + ObserversTuple<S::Input, S>,
     for<'a> E::Observers: Deserialize<'a>,
     EMH: EventManagerHooksTuple<S>,
-    S: State + HasExecutions + HasMetadata + HasLastReportTime,
-    Z: EvaluatorObservers<E::Observers, State = S> + ExecutionProcessor<E::Observers, State = S>,
+    S: State + HasExecutions + HasMetadata + HasLastReportTime + HasImported,
+    Z: EvaluatorObservers<Self, E::Observers, State = S>
+        + ExecutionProcessor<Self, E::Observers, State = S>,
 {
 }
 
@@ -916,6 +904,10 @@ where
     S: State,
     //CE: CustomEvent<I>,
 {
+    fn should_send(&self) -> bool {
+        self.tcp_mgr.should_send()
+    }
+
     fn fire(
         &mut self,
         state: &mut Self::State,
@@ -972,27 +964,35 @@ where
 #[cfg(feature = "std")]
 impl<E, EMH, S, SP, Z> EventProcessor<E, Z> for TcpRestartingEventManager<EMH, S, SP>
 where
-    E: HasObservers<State = S> + Executor<TcpEventManager<EMH, S>, Z>,
+    E: HasObservers + Executor<TcpEventManager<EMH, S>, Z, State = S>,
     for<'a> E::Observers: Deserialize<'a>,
+    E::Observers: ObserversTuple<S::Input, S> + Serialize,
     EMH: EventManagerHooksTuple<S>,
-    S: State + HasExecutions + HasMetadata,
+    S: State + HasExecutions + HasMetadata + HasImported,
     SP: ShMemProvider + 'static,
-    Z: EvaluatorObservers<E::Observers, State = S> + ExecutionProcessor<E::Observers>, //CE: CustomEvent<I>,
+    Z: EvaluatorObservers<TcpEventManager<EMH, S>, E::Observers, State = S>
+        + ExecutionProcessor<TcpEventManager<EMH, S>, E::Observers>, //CE: CustomEvent<I>,
 {
     fn process(&mut self, fuzzer: &mut Z, state: &mut S, executor: &mut E) -> Result<usize, Error> {
         self.tcp_mgr.process(fuzzer, state, executor)
+    }
+
+    fn on_shutdown(&mut self) -> Result<(), Error> {
+        self.send_exiting()
     }
 }
 
 #[cfg(feature = "std")]
 impl<E, EMH, S, SP, Z> EventManager<E, Z> for TcpRestartingEventManager<EMH, S, SP>
 where
-    E: HasObservers<State = S> + Executor<TcpEventManager<EMH, S>, Z>,
+    E: HasObservers + Executor<TcpEventManager<EMH, S>, Z, State = S>,
+    E::Observers: ObserversTuple<S::Input, S> + Serialize,
     for<'a> E::Observers: Deserialize<'a>,
     EMH: EventManagerHooksTuple<S>,
-    S: State + HasExecutions + HasMetadata + HasLastReportTime,
+    S: State + HasExecutions + HasMetadata + HasLastReportTime + HasImported,
     SP: ShMemProvider + 'static,
-    Z: EvaluatorObservers<E::Observers, State = S> + ExecutionProcessor<E::Observers>, //CE: CustomEvent<I>,
+    Z: EvaluatorObservers<TcpEventManager<EMH, S>, E::Observers, State = S>
+        + ExecutionProcessor<TcpEventManager<EMH, S>, E::Observers>, //CE: CustomEvent<I>,
 {
 }
 
@@ -1071,7 +1071,8 @@ pub enum TcpManagerKind {
 }
 
 /// Sets up a restarting fuzzer, using the [`StdShMemProvider`], and standard features.
-/// The restarting mgr is a combination of restarter and runner, that can be used on systems with and without `fork` support.
+///
+/// The [`TcpRestartingEventManager`] is a combination of restarter and runner, that can be used on systems with and without `fork` support.
 /// The restarter will spawn a new process each time the child crashes or timeouts.
 #[cfg(feature = "std")]
 #[allow(clippy::type_complexity)]
@@ -1088,7 +1089,7 @@ pub fn setup_restarting_mgr_tcp<MT, S>(
 >
 where
     MT: Monitor + Clone,
-    S: State + HasExecutions + HasMetadata,
+    S: State + HasExecutions + HasMetadata + HasImported,
 {
     TcpRestartingMgr::builder()
         .shmem_provider(StdShMemProvider::new()?)
@@ -1100,7 +1101,9 @@ where
         .launch()
 }
 
-/// Provides a `builder` which can be used to build a [`TcpRestartingMgr`], which is a combination of a
+/// Provides a `builder` which can be used to build a [`TcpRestartingMgr`].
+///
+/// The [`TcpRestartingMgr`] is a combination of a
 /// `restarter` and `runner`, that can be used on systems both with and without `fork` support. The
 /// `restarter` will start a new process each time the child crashes or times out.
 #[cfg(feature = "std")]
@@ -1153,22 +1156,9 @@ impl<EMH, MT, S, SP> TcpRestartingMgr<EMH, MT, S, SP>
 where
     EMH: EventManagerHooksTuple<S> + Copy + Clone,
     SP: ShMemProvider,
-    S: State + HasExecutions + HasMetadata,
+    S: State + HasExecutions + HasMetadata + HasImported,
     MT: Monitor + Clone,
 {
-    /// Internal function, returns true when shuttdown is requested by a `SIGINT` signal
-    #[inline]
-    #[allow(clippy::unused_self)]
-    fn is_shutting_down() -> bool {
-        #[cfg(unix)]
-        unsafe {
-            core::ptr::read_volatile(core::ptr::addr_of!(EVENTMGR_SIGHANDLER_STATE.shutting_down))
-        }
-
-        #[cfg(windows)]
-        false
-    }
-
     /// Launch the restarting manager
     pub fn launch(&mut self) -> Result<(Option<S>, TcpRestartingEventManager<EMH, S, SP>), Error> {
         // We start ourself as child process to actually fuzz
@@ -1204,11 +1194,13 @@ where
                         }
                         Err(Error::OsError(..)) => {
                             // port was likely already bound
-                            let mgr = TcpEventManager::<EMH, S>::with_hooks(
-                                &("127.0.0.1", self.broker_port),
-                                self.configuration,
-                                self.hooks,
-                            )?;
+                            let mgr = TcpEventManagerBuilder::new()
+                                .hooks(self.hooks)
+                                .build_from_client(
+                                    &("127.0.0.1", self.broker_port),
+                                    UNDEFINED_CLIENT_ID,
+                                    self.configuration,
+                                )?;
                             (mgr, None)
                         }
                         Err(e) => {
@@ -1227,11 +1219,9 @@ where
                 }
                 TcpManagerKind::Client { cpu_core } => {
                     // We are a client
-                    let mgr = TcpEventManager::<EMH, S>::on_port_with_hooks(
-                        self.broker_port,
-                        self.configuration,
-                        self.hooks,
-                    )?;
+                    let mgr = TcpEventManagerBuilder::new()
+                        .hooks(self.hooks)
+                        .build_on_port(self.broker_port, UNDEFINED_CLIENT_ID, self.configuration)?;
 
                     (mgr, cpu_core)
                 }
@@ -1257,15 +1247,6 @@ where
             // Store the information to a map.
             staterestorer.write_to_env(_ENV_FUZZER_SENDER)?;
 
-            // We setup signal handlers to clean up shmem segments used by state restorer
-            #[cfg(all(unix, not(miri)))]
-            if let Err(_e) =
-                unsafe { setup_signal_handler(addr_of_mut!(EVENTMGR_SIGHANDLER_STATE)) }
-            {
-                // We can live without a proper ctrl+c signal handler. Print and ignore.
-                log::error!("Failed to setup signal handlers: {_e}");
-            }
-
             let mut ctr: u64 = 0;
             // Client->parent loop
             loop {
@@ -1279,7 +1260,7 @@ where
                     match unsafe { fork() }? {
                         ForkResult::Parent(handle) => {
                             unsafe {
-                                EVENTMGR_SIGHANDLER_STATE.set_exit_from_main();
+                                libc::signal(libc::SIGINT, libc::SIG_IGN);
                             }
                             self.shmem_provider.post_fork(false)?;
                             handle.status()
@@ -1291,18 +1272,30 @@ where
                     }
                 };
 
-                #[cfg(all(unix, not(feature = "fork")))]
+                // If this guy wants to fork, then ignore sigit
+                #[cfg(any(windows, not(feature = "fork")))]
                 unsafe {
-                    EVENTMGR_SIGHANDLER_STATE.set_exit_from_main();
+                    #[cfg(windows)]
+                    libafl_bolts::os::windows_exceptions::signal(
+                        libafl_bolts::os::windows_exceptions::SIGINT,
+                        libafl_bolts::os::windows_exceptions::sig_ign(),
+                    );
+
+                    #[cfg(unix)]
+                    libc::signal(libc::SIGINT, libc::SIG_IGN);
                 }
 
                 // On Windows (or in any case without fork), we spawn ourself again
                 #[cfg(any(windows, not(feature = "fork")))]
                 let child_status = startable_self()?.status()?;
-                #[cfg(all(unix, not(feature = "fork")))]
+                #[cfg(any(windows, not(feature = "fork")))]
                 let child_status = child_status.code().unwrap_or_default();
 
                 compiler_fence(Ordering::SeqCst);
+
+                if child_status == CTRL_C_EXIT || staterestorer.wants_to_exit() {
+                    return Err(Error::shutting_down());
+                }
 
                 #[allow(clippy::manual_assert)]
                 if !staterestorer.has_content() && self.serialize_state {
@@ -1315,10 +1308,6 @@ where
 
                     // Storing state in the last round did not work
                     panic!("Fuzzer-respawner: Storing state in crashed fuzzer instance did not work, no point to spawn the next client! This can happen if the child calls `exit()`, in that case make sure it uses `abort()`, if it got killed unrecoverable (OOM), or if there is a bug in the fuzzer itself. (Child exited with: {child_status})");
-                }
-
-                if staterestorer.wants_to_exit() || Self::is_shutting_down() {
-                    return Err(Error::shutting_down());
                 }
 
                 ctr = ctr.wrapping_add(1);
@@ -1334,6 +1323,14 @@ where
             )
         };
 
+        // At this point we are the fuzzer *NOT* the restarter.
+        // We setup signal handlers to clean up shmem segments used by state restorer
+        #[cfg(all(unix, not(miri)))]
+        if let Err(_e) = unsafe { setup_signal_handler(addr_of_mut!(EVENTMGR_SIGHANDLER_STATE)) } {
+            // We can live without a proper ctrl+c signal handler. Print and ignore.
+            log::error!("Failed to setup signal handlers: {_e}");
+        }
+
         if let Some(core_id) = core_id {
             let core_id: CoreId = core_id;
             core_id.set_affinity()?;
@@ -1344,12 +1341,9 @@ where
             (
                 state_opt,
                 TcpRestartingEventManager::with_save_state(
-                    TcpEventManager::existing_on_port_with_hooks(
-                        self.broker_port,
-                        this_id,
-                        self.configuration,
-                        self.hooks,
-                    )?,
+                    TcpEventManagerBuilder::new()
+                        .hooks(self.hooks)
+                        .build_on_port(self.broker_port, this_id, self.configuration)?,
                     staterestorer,
                     self.serialize_state,
                 ),
@@ -1357,12 +1351,13 @@ where
         } else {
             log::info!("First run. Let's set it all up");
             // Mgr to send and receive msgs from/to all other fuzzer instances
-            let mgr = TcpEventManager::<EMH, S>::existing_from_env_with_hooks(
-                &("127.0.0.1", self.broker_port),
-                _ENV_FUZZER_BROKER_CLIENT_INITIAL,
-                self.configuration,
-                self.hooks,
-            )?;
+            let mgr = TcpEventManagerBuilder::new()
+                .hooks(self.hooks)
+                .build_existing_from_env(
+                    &("127.0.0.1", self.broker_port),
+                    _ENV_FUZZER_BROKER_CLIENT_INITIAL,
+                    self.configuration,
+                )?;
 
             (
                 None,

@@ -1,24 +1,28 @@
 //! The tracing stage can trace the target and enrich a [`crate::corpus::Testcase`] with metadata, for example for `CmpLog`.
 
 use alloc::{
-    string::{String, ToString},
+    borrow::{Cow, ToOwned},
     vec::Vec,
 };
 use core::{fmt::Debug, marker::PhantomData};
 
-use libafl_bolts::{AsSlice, Named};
+use libafl_bolts::{
+    tuples::{Handle, Handled},
+    AsSlice, Named,
+};
 
 use crate::{
-    corpus::{Corpus, HasCurrentCorpusIdx},
+    corpus::{Corpus, HasCurrentCorpusId},
     executors::{Executor, HasObservers},
     feedbacks::map::MapNoveltiesMetadata,
-    inputs::{BytesInput, GeneralizedInputMetadata, GeneralizedItem, HasBytesVec, UsesInput},
+    inputs::{BytesInput, GeneralizedInputMetadata, GeneralizedItem, HasMutatorBytes, UsesInput},
     mark_feature_time,
-    observers::{MapObserver, ObserversTuple},
-    stages::{RetryRestartHelper, Stage},
+    observers::{CanTrack, MapObserver, ObserversTuple},
+    require_novelties_tracking,
+    stages::{RetryCountRestartHelper, Stage},
     start_timer,
-    state::{HasCorpus, HasExecutions, HasMetadata, HasNamedMetadata, UsesState},
-    Error,
+    state::{HasCorpus, HasExecutions, UsesState},
+    Error, HasMetadata, HasNamedMetadata,
 };
 #[cfg(feature = "introspection")]
 use crate::{monitors::PerfFeature, state::HasClientPerfMonitor};
@@ -39,37 +43,42 @@ fn find_next_char(list: &[Option<u8>], mut idx: usize, ch: u8) -> usize {
     idx
 }
 
+/// The name for generalization stage
+pub static GENERALIZATION_STAGE_NAME: &str = "generalization";
+
 /// A stage that runs a tracer executor
 #[derive(Clone, Debug)]
-pub struct GeneralizationStage<EM, O, OT, Z> {
-    map_observer_name: String,
+pub struct GeneralizationStage<C, EM, O, OT, Z> {
+    name: Cow<'static, str>,
+    map_observer_handle: Handle<C>,
     #[allow(clippy::type_complexity)]
     phantom: PhantomData<(EM, O, OT, Z)>,
 }
 
-impl<EM, O, OT, Z> Named for GeneralizationStage<EM, O, OT, Z> {
-    fn name(&self) -> &str {
-        "GeneralizationStage"
+impl<C, EM, O, OT, Z> Named for GeneralizationStage<C, EM, O, OT, Z> {
+    fn name(&self) -> &Cow<'static, str> {
+        &self.name
     }
 }
 
-impl<EM, O, OT, Z> UsesState for GeneralizationStage<EM, O, OT, Z>
+impl<C, EM, O, OT, Z> UsesState for GeneralizationStage<C, EM, O, OT, Z>
 where
     EM: UsesState,
-    EM::State: UsesInput<Input = BytesInput>,
 {
     type State = EM::State;
 }
 
-impl<E, EM, O, Z> Stage<E, EM, Z> for GeneralizationStage<EM, O, E::Observers, Z>
+impl<C, E, EM, O, Z> Stage<E, EM, Z> for GeneralizationStage<C, EM, O, E::Observers, Z>
 where
     O: MapObserver,
-    E: Executor<EM, Z> + HasObservers,
-    E::Observers: ObserversTuple<E::State>,
-    E::State:
+    C: CanTrack + AsRef<O> + Named,
+    E: Executor<EM, Z, State = Self::State> + HasObservers,
+    E::Observers: ObserversTuple<BytesInput, <Self as UsesState>::State>,
+    EM::State:
         UsesInput<Input = BytesInput> + HasExecutions + HasMetadata + HasCorpus + HasNamedMetadata,
-    EM: UsesState<State = E::State>,
-    Z: UsesState<State = E::State>,
+    EM: UsesState,
+    <<Self as UsesState>::State as HasCorpus>::Corpus: Corpus<Input = BytesInput>, //delete me
+    Z: UsesState<State = Self::State>,
 {
     #[inline]
     #[allow(clippy::too_many_lines)]
@@ -77,10 +86,10 @@ where
         &mut self,
         fuzzer: &mut Z,
         executor: &mut E,
-        state: &mut E::State,
+        state: &mut Self::State,
         manager: &mut EM,
     ) -> Result<(), Error> {
-        let Some(corpus_idx) = state.current_corpus_idx()? else {
+        let Some(corpus_id) = state.current_corpus_id()? else {
             return Err(Error::illegal_state(
                 "state is not currently processing a corpus index",
             ));
@@ -90,7 +99,7 @@ where
             start_timer!(state);
             {
                 let corpus = state.corpus();
-                let mut testcase = corpus.get(corpus_idx)?.borrow_mut();
+                let mut testcase = corpus.get(corpus_id)?.borrow_mut();
                 if testcase.scheduled_count() > 0 {
                     return Ok(());
                 }
@@ -98,14 +107,19 @@ where
                 corpus.load_input_into(&mut testcase)?;
             }
             mark_feature_time!(state, PerfFeature::GetInputFromCorpus);
-            let mut entry = state.corpus().get(corpus_idx)?.borrow_mut();
+            let mut entry = state.corpus().get(corpus_id)?.borrow_mut();
             let input = entry.input_mut().as_mut().unwrap();
 
             let payload: Vec<_> = input.bytes().iter().map(|&x| Some(x)).collect();
+
+            if payload.len() > MAX_GENERALIZED_LEN {
+                return Ok(());
+            }
+
             let original = input.clone();
             let meta = entry.metadata_map().get::<MapNoveltiesMetadata>().ok_or_else(|| {
                     Error::key_not_found(format!(
-                        "MapNoveltiesMetadata needed for GeneralizationStage not found in testcase #{corpus_idx} (check the arguments of MapFeedback::new(...))"
+                        "MapNoveltiesMetadata needed for GeneralizationStage not found in testcase #{corpus_id} (check the arguments of MapFeedback::new(...))"
                     ))
                 })?;
             if meta.as_slice().is_empty() {
@@ -302,56 +316,52 @@ where
             b'"',
         )?;
 
-        if payload.len() <= MAX_GENERALIZED_LEN {
-            // Save the modified input in the corpus
-            {
-                let meta = GeneralizedInputMetadata::generalized_from_options(&payload);
+        // Save the modified input in the corpus
+        {
+            let meta = GeneralizedInputMetadata::generalized_from_options(&payload);
 
-                assert!(meta.generalized().first() == Some(&GeneralizedItem::Gap));
-                assert!(meta.generalized().last() == Some(&GeneralizedItem::Gap));
+            assert!(meta.generalized().first() == Some(&GeneralizedItem::Gap));
+            assert!(meta.generalized().last() == Some(&GeneralizedItem::Gap));
 
-                let mut entry = state.corpus().get(corpus_idx)?.borrow_mut();
-                entry.metadata_map_mut().insert(meta);
-            }
+            let mut entry = state.corpus().get(corpus_id)?.borrow_mut();
+            entry.metadata_map_mut().insert(meta);
         }
 
         Ok(())
     }
 
     #[inline]
-    fn restart_progress_should_run(&mut self, state: &mut Self::State) -> Result<bool, Error> {
+    fn should_restart(&mut self, state: &mut Self::State) -> Result<bool, Error> {
         // TODO: We need to be able to resume better if something crashes or times out
-        RetryRestartHelper::restart_progress_should_run(state, self, 3)
+        RetryCountRestartHelper::should_restart(state, &self.name, 3)
     }
 
     #[inline]
-    fn clear_restart_progress(&mut self, state: &mut Self::State) -> Result<(), Error> {
+    fn clear_progress(&mut self, state: &mut Self::State) -> Result<(), Error> {
         // TODO: We need to be able to resume better if something crashes or times out
-        RetryRestartHelper::clear_restart_progress(state, self)
+        RetryCountRestartHelper::clear_progress(state, &self.name)
     }
 }
 
-impl<EM, O, OT, Z> GeneralizationStage<EM, O, OT, Z>
+impl<C, EM, O, OT, Z> GeneralizationStage<C, EM, O, OT, Z>
 where
     EM: UsesState,
     O: MapObserver,
-    OT: ObserversTuple<EM::State>,
-    EM::State: UsesInput<Input = BytesInput> + HasExecutions + HasMetadata + HasCorpus,
+    C: CanTrack + AsRef<O> + Named,
+    <Self as UsesState>::State:
+        UsesInput<Input = BytesInput> + HasExecutions + HasMetadata + HasCorpus,
+    OT: ObserversTuple<BytesInput, <EM as UsesState>::State>,
 {
     /// Create a new [`GeneralizationStage`].
     #[must_use]
-    pub fn new(map_observer: &O) -> Self {
+    pub fn new(map_observer: &C) -> Self {
+        require_novelties_tracking!("GeneralizationStage", C);
+        let name = map_observer.name().clone();
         Self {
-            map_observer_name: map_observer.name().to_string(),
-            phantom: PhantomData,
-        }
-    }
-
-    /// Create a new [`GeneralizationStage`] from name
-    #[must_use]
-    pub fn from_name(map_observer_name: &str) -> Self {
-        Self {
-            map_observer_name: map_observer_name.to_string(),
+            name: Cow::Owned(
+                GENERALIZATION_STAGE_NAME.to_owned() + ":" + name.into_owned().as_str(),
+            ),
+            map_observer_handle: map_observer.handle(),
             phantom: PhantomData,
         }
     }
@@ -360,13 +370,14 @@ where
         &self,
         fuzzer: &mut Z,
         executor: &mut E,
-        state: &mut EM::State,
+        state: &mut <Self as UsesState>::State,
         manager: &mut EM,
         novelties: &[usize],
         input: &BytesInput,
     ) -> Result<bool, Error>
     where
-        E: Executor<EM, Z> + HasObservers<Observers = OT, State = EM::State>,
+        E: Executor<EM, Z, State = <Self as UsesState>::State> + HasObservers,
+        E::Observers: ObserversTuple<BytesInput, <Self as UsesState>::State>,
         Z: UsesState<State = EM::State>,
     {
         start_timer!(state);
@@ -377,18 +388,14 @@ where
         let exit_kind = executor.run_target(fuzzer, state, manager, input)?;
         mark_feature_time!(state, PerfFeature::TargetExecution);
 
-        *state.executions_mut() += 1;
-
         start_timer!(state);
         executor
             .observers_mut()
             .post_exec_all(state, input, &exit_kind)?;
         mark_feature_time!(state, PerfFeature::PostExecObservers);
 
-        let cnt = executor
-            .observers()
-            .match_name::<O>(&self.map_observer_name)
-            .ok_or_else(|| Error::key_not_found("MapObserver not found".to_string()))?
+        let cnt = executor.observers()[&self.map_observer_handle]
+            .as_ref()
             .how_many_set(novelties);
 
         Ok(cnt == novelties.len())
@@ -404,7 +411,7 @@ where
         &self,
         fuzzer: &mut Z,
         executor: &mut E,
-        state: &mut EM::State,
+        state: &mut <Self as UsesState>::State,
         manager: &mut EM,
         payload: &mut Vec<Option<u8>>,
         novelties: &[usize],
@@ -412,7 +419,7 @@ where
         split_char: u8,
     ) -> Result<(), Error>
     where
-        E: Executor<EM, Z> + HasObservers<Observers = OT, State = EM::State>,
+        E: Executor<EM, Z, State = <Self as UsesState>::State> + HasObservers<Observers = OT>,
         Z: UsesState<State = EM::State>,
     {
         let mut start = 0;
@@ -422,12 +429,8 @@ where
                 end = payload.len();
             }
             let mut candidate = BytesInput::new(vec![]);
-            candidate
-                .bytes_mut()
-                .extend(payload[..start].iter().flatten());
-            candidate
-                .bytes_mut()
-                .extend(payload[end..].iter().flatten());
+            candidate.extend(payload[..start].iter().flatten());
+            candidate.extend(payload[end..].iter().flatten());
 
             if self.verify_input(fuzzer, executor, state, manager, novelties, &candidate)? {
                 for item in &mut payload[start..end] {
@@ -447,7 +450,7 @@ where
         &self,
         fuzzer: &mut Z,
         executor: &mut E,
-        state: &mut EM::State,
+        state: &mut <Self as UsesState>::State,
         manager: &mut EM,
         payload: &mut Vec<Option<u8>>,
         novelties: &[usize],
@@ -455,7 +458,7 @@ where
         closing_char: u8,
     ) -> Result<(), Error>
     where
-        E: Executor<EM, Z> + HasObservers<Observers = OT, State = EM::State>,
+        E: Executor<EM, Z, State = <Self as UsesState>::State> + HasObservers<Observers = OT>,
         Z: UsesState<State = EM::State>,
     {
         let mut index = 0;
@@ -475,12 +478,8 @@ where
                 if payload[end] == Some(closing_char) {
                     endings += 1;
                     let mut candidate = BytesInput::new(vec![]);
-                    candidate
-                        .bytes_mut()
-                        .extend(payload[..start].iter().flatten());
-                    candidate
-                        .bytes_mut()
-                        .extend(payload[end..].iter().flatten());
+                    candidate.extend(payload[..start].iter().flatten());
+                    candidate.extend(payload[end..].iter().flatten());
 
                     if self.verify_input(fuzzer, executor, state, manager, novelties, &candidate)? {
                         for item in &mut payload[start..end] {

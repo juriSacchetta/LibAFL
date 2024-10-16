@@ -1,6 +1,6 @@
 # Variables
 [env]
-CUSTOM_QEMU_DIR='/home/js/Thesis/LibAFL/qemu-libafl-bridge'
+CUSTOM_QEMU_DIR='/home/js/Workspace/Phd/qemu-libafl-bridge'
 FUZZER_NAME='interleaving_fuzz'
 HARNESS='harness' 
 PROJECT_DIR = { script = ["pwd"] }

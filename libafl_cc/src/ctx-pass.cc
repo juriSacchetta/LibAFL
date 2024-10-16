@@ -64,7 +64,7 @@
 
 using namespace llvm;
 
-#define MAP_SIZE LIBAFL_EDGES_MAP_SIZE
+#define MAP_SIZE EDGES_MAP_DEFAULT_SIZE
 
 namespace {
 
@@ -93,7 +93,11 @@ class CtxPass : public ModulePass {
  private:
   bool isLLVMIntrinsicFn(StringRef &n) {
     // Not interested in these LLVM's functions
+#if LLVM_VERSION_MAJOR >= 18
+    if (n.starts_with("llvm.")) {
+#else
     if (n.startswith("llvm.")) {
+#endif
       return true;
     } else {
       return false;

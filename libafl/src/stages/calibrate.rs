@@ -1,13 +1,14 @@
 //! The calibration stage. The fuzzer measures the average exec time and the bitmap size.
 
 use alloc::{
-    string::{String, ToString},
+    borrow::{Cow, ToOwned},
+    string::ToString,
     vec::Vec,
 };
 use core::{fmt::Debug, marker::PhantomData, time::Duration};
 
 use hashbrown::HashSet;
-use libafl_bolts::{current_time, impl_serdeany, AsIter, Named};
+use libafl_bolts::{current_time, impl_serdeany, tuples::Handle, AsIter, Named};
 use num_traits::Bounded;
 use serde::{Deserialize, Serialize};
 
@@ -15,22 +16,19 @@ use crate::{
     corpus::{Corpus, SchedulerTestcaseMetadata},
     events::{Event, EventFirer, LogSeverity},
     executors::{Executor, ExitKind, HasObservers},
-    feedbacks::{map::MapFeedbackMetadata, HasObserverName},
+    feedbacks::{map::MapFeedbackMetadata, HasObserverHandle},
     fuzzer::Evaluator,
+    inputs::UsesInput,
     monitors::{AggregatorOps, UserStats, UserStatsValue},
-    observers::{MapObserver, ObserversTuple, UsesObserver},
+    observers::{MapObserver, ObserversTuple},
     schedulers::powersched::SchedulerMetadata,
-    stages::{ExecutionCountRestartHelper, Stage},
-    state::{
-        HasCorpus, HasCurrentTestcase, HasExecutions, HasMetadata, HasNamedMetadata, State,
-        UsesState,
-    },
-    Error,
+    stages::{RetryCountRestartHelper, Stage},
+    state::{HasCorpus, HasCurrentTestcase, HasExecutions, UsesState},
+    Error, HasMetadata, HasNamedMetadata,
 };
 
 /// The metadata to keep unstable entries
-/// In libafl, the stability is the number of the unstable entries divided by the size of the map
-/// This is different from AFL++, which shows the number of the unstable entries divided by the number of filled entries.
+/// Formula is same as AFL++: number of unstable entries divided by the number of filled entries.
 #[cfg_attr(
     any(not(feature = "serdeany_autoreg"), miri),
     allow(clippy::unsafe_derive_deserialize)
@@ -38,17 +36,17 @@ use crate::{
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct UnstableEntriesMetadata {
     unstable_entries: HashSet<usize>,
-    map_len: usize,
+    filled_entries_count: usize,
 }
 impl_serdeany!(UnstableEntriesMetadata);
 
 impl UnstableEntriesMetadata {
     #[must_use]
     /// Create a new [`struct@UnstableEntriesMetadata`]
-    pub fn new(entries: HashSet<usize>, map_len: usize) -> Self {
+    pub fn new() -> Self {
         Self {
-            unstable_entries: entries,
-            map_len,
+            unstable_entries: HashSet::new(),
+            filled_entries_count: 0,
         }
     }
 
@@ -60,42 +58,53 @@ impl UnstableEntriesMetadata {
 
     /// Getter
     #[must_use]
-    pub fn map_len(&self) -> usize {
-        self.map_len
+    pub fn filled_entries_count(&self) -> usize {
+        self.filled_entries_count
     }
 }
 
+impl Default for UnstableEntriesMetadata {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Default name for `CalibrationStage`; derived from AFL++
+pub const CALIBRATION_STAGE_NAME: &str = "calibration";
 /// The calibration stage will measure the average exec time and the target's stability for this input.
 #[derive(Clone, Debug)]
-pub struct CalibrationStage<O, OT, S> {
-    map_observer_name: String,
-    map_name: String,
+pub struct CalibrationStage<C, E, O, OT> {
+    map_observer_handle: Handle<C>,
+    map_name: Cow<'static, str>,
+    name: Cow<'static, str>,
     stage_max: usize,
     /// If we should track stability
     track_stability: bool,
-    restart_helper: ExecutionCountRestartHelper,
-    phantom: PhantomData<(O, OT, S)>,
+    phantom: PhantomData<(E, O, OT)>,
 }
 
 const CAL_STAGE_START: usize = 4; // AFL++'s CAL_CYCLES_FAST + 1
 const CAL_STAGE_MAX: usize = 8; // AFL++'s CAL_CYCLES + 1
 
-impl<O, OT, S> UsesState for CalibrationStage<O, OT, S>
+impl<C, E, O, OT> UsesState for CalibrationStage<C, E, O, OT>
 where
-    S: State,
+    E: UsesState,
 {
-    type State = S;
+    type State = E::State;
 }
 
-impl<E, EM, O, OT, Z> Stage<E, EM, Z> for CalibrationStage<O, OT, E::State>
+impl<C, E, EM, O, OT, Z> Stage<E, EM, Z> for CalibrationStage<C, E, O, OT>
 where
     E: Executor<EM, Z> + HasObservers<Observers = OT>,
-    EM: EventFirer<State = E::State>,
+    EM: EventFirer<State = Self::State>,
     O: MapObserver,
-    for<'de> <O as MapObserver>::Entry: Serialize + Deserialize<'de> + 'static,
-    OT: ObserversTuple<E::State>,
-    E::State: HasCorpus + HasMetadata + HasNamedMetadata + HasExecutions,
-    Z: Evaluator<E, EM, State = E::State>,
+    C: AsRef<O>,
+    for<'de> <O as MapObserver>::Entry:
+        Serialize + Deserialize<'de> + 'static + Default + Debug + Bounded,
+    OT: ObserversTuple<Self::Input, Self::State>,
+    E::State: HasCorpus + HasMetadata + HasNamedMetadata + HasExecutions + HasCurrentTestcase,
+    Z: Evaluator<E, EM, State = Self::State>,
+    <<E as UsesState>::State as HasCorpus>::Corpus: Corpus<Input = Self::Input>, //delete me
 {
     #[inline]
     #[allow(
@@ -107,7 +116,7 @@ where
         &mut self,
         fuzzer: &mut Z,
         executor: &mut E,
-        state: &mut E::State,
+        state: &mut Self::State,
         mgr: &mut EM,
     ) -> Result<(), Error> {
         // Run this stage only once for each corpus entry and only if we haven't already inspected it
@@ -122,8 +131,6 @@ where
 
         let mut iter = self.stage_max;
         // If we restarted after a timeout or crash, do less iterations.
-        iter -= usize::try_from(self.restart_helper.execs_since_progress_start(state)?)?;
-
         let input = state.current_input_cloned()?;
 
         // Run once to get the initial calibration map
@@ -148,14 +155,27 @@ where
             .observers_mut()
             .post_exec_all(state, &input, &exit_kind)?;
 
-        let map_first = &executor
-            .observers()
-            .match_name::<O>(&self.map_observer_name)
-            .ok_or_else(|| Error::key_not_found("MapObserver not found".to_string()))?
-            .to_vec();
-
+        let observers = &executor.observers();
+        let map_first = observers[&self.map_observer_handle].as_ref();
+        let map_first_filled_count = match state
+            .named_metadata_map()
+            .get::<MapFeedbackMetadata<O::Entry>>(&self.map_name)
+        {
+            Some(metadata) => metadata.num_covered_map_indexes,
+            None => map_first.count_bytes().try_into().map_err(|len| {
+                Error::illegal_state(
+                    format!(
+                        "map's filled entry count ({}) is greater than usize::MAX ({})",
+                        len,
+                        usize::MAX,
+                    )
+                    .as_str(),
+                )
+            })?,
+        };
+        let map_first_entries = map_first.to_vec();
+        let map_first_len = map_first.to_vec().len();
         let mut unstable_entries: Vec<usize> = vec![];
-        let map_len: usize = map_first.len();
         // Run CAL_STAGE_START - 1 times, increase by 2 for every time a new
         // run is found to be unstable or to crash with CAL_STAGE_MAX total runs.
         let mut i = 1;
@@ -190,29 +210,31 @@ where
                 .observers_mut()
                 .post_exec_all(state, &input, &exit_kind)?;
 
-            if self.track_stability {
-                let map = &executor
-                    .observers()
-                    .match_name::<O>(&self.map_observer_name)
-                    .ok_or_else(|| Error::key_not_found("MapObserver not found".to_string()))?
+            if self.track_stability && exit_kind != ExitKind::Timeout {
+                let map = &executor.observers()[&self.map_observer_handle]
+                    .as_ref()
                     .to_vec();
 
-                let history_map = &mut state
+                let map_state = state
                     .named_metadata_map_mut()
                     .get_mut::<MapFeedbackMetadata<O::Entry>>(&self.map_name)
-                    .unwrap()
-                    .history_map;
+                    .unwrap();
+                let history_map = &mut map_state.history_map;
 
-                if history_map.len() < map_len {
-                    history_map.resize(map_len, O::Entry::default());
+                if history_map.len() < map_first_len {
+                    history_map.resize(map_first_len, O::Entry::default());
                 }
 
-                for (idx, (first, (cur, history))) in map_first
+                for (idx, (first, (cur, history))) in map_first_entries
                     .iter()
                     .zip(map.iter().zip(history_map.iter_mut()))
                     .enumerate()
                 {
                     if *first != *cur && *history != O::Entry::max_value() {
+                        // If we just hit a history map entry that was not covered before, but is now flagged as flaky,
+                        // we need to make sure the `num_covered_map_indexes` is kept in sync.
+                        map_state.num_covered_map_indexes +=
+                            usize::from(*history == O::Entry::default());
                         *history = O::Entry::max_value();
                         unstable_entries.push(idx);
                     };
@@ -225,36 +247,35 @@ where
             i += 1;
         }
 
+        let mut send_default_stability = false;
         let unstable_found = !unstable_entries.is_empty();
         if unstable_found {
-            // If we see new stable entries executing this new corpus entries, then merge with the existing one
-            if state.has_metadata::<UnstableEntriesMetadata>() {
-                let existing = state
-                    .metadata_map_mut()
-                    .get_mut::<UnstableEntriesMetadata>()
-                    .unwrap();
-                for item in unstable_entries {
-                    existing.unstable_entries.insert(item); // Insert newly found items
-                }
-                existing.map_len = map_len;
-            } else {
-                state.add_metadata::<UnstableEntriesMetadata>(UnstableEntriesMetadata::new(
-                    HashSet::from_iter(unstable_entries),
-                    map_len,
-                ));
+            let metadata = state.metadata_or_insert_with(UnstableEntriesMetadata::new);
+
+            // If we see new unstable entries executing this new corpus entries, then merge with the existing one
+            for item in unstable_entries {
+                metadata.unstable_entries.insert(item); // Insert newly found items
             }
-        };
+            metadata.filled_entries_count = map_first_filled_count;
+        } else if !state.has_metadata::<UnstableEntriesMetadata>() {
+            send_default_stability = true;
+            state.add_metadata(UnstableEntriesMetadata::new());
+        }
 
         // If weighted scheduler or powerscheduler is used, update it
         if state.has_metadata::<SchedulerMetadata>() {
-            let map = executor
-                .observers()
-                .match_name::<O>(&self.map_observer_name)
-                .ok_or_else(|| Error::key_not_found("MapObserver not found".to_string()))?;
+            let observers = executor.observers();
+            let map = observers[&self.map_observer_handle].as_ref();
 
-            let mut bitmap_size = map.count_bytes();
-            assert!(bitmap_size != 0);
-            bitmap_size = bitmap_size.max(1); // just don't make it 0 because we take log2 of it later.
+            let bitmap_size = map.count_bytes();
+
+            if bitmap_size < 1 {
+                return Err(Error::invalid_corpus(
+                    "This testcase does not trigger any edges. Check your instrumentation!"
+                        .to_string(),
+                ));
+            }
+
             let psmeta = state
                 .metadata_map_mut()
                 .get_mut::<SchedulerMetadata>()
@@ -300,21 +321,22 @@ where
             data.set_handicap(handicap);
         }
 
-        *state.executions_mut() += u64::try_from(i).unwrap();
-
         // Send the stability event to the broker
         if unstable_found {
             if let Some(meta) = state.metadata_map().get::<UnstableEntriesMetadata>() {
                 let unstable_entries = meta.unstable_entries().len();
-                let map_len = meta.map_len();
+                debug_assert_ne!(
+                    map_first_filled_count, 0,
+                    "The map's filled count must never be 0"
+                );
                 mgr.fire(
                     state,
                     Event::UpdateUserStats {
-                        name: "stability".to_string(),
+                        name: Cow::from("stability"),
                         value: UserStats::new(
                             UserStatsValue::Ratio(
-                                (map_len - unstable_entries) as u64,
-                                map_len as u64,
+                                (map_first_filled_count - unstable_entries) as u64,
+                                map_first_filled_count as u64,
                             ),
                             AggregatorOps::Avg,
                         ),
@@ -322,42 +344,65 @@ where
                     },
                 )?;
             }
+        } else if send_default_stability {
+            mgr.fire(
+                state,
+                Event::UpdateUserStats {
+                    name: Cow::from("stability"),
+                    value: UserStats::new(
+                        UserStatsValue::Ratio(
+                            map_first_filled_count as u64,
+                            map_first_filled_count as u64,
+                        ),
+                        AggregatorOps::Avg,
+                    ),
+                    phantom: PhantomData,
+                },
+            )?;
         }
 
         Ok(())
     }
 
-    fn restart_progress_should_run(&mut self, state: &mut Self::State) -> Result<bool, Error> {
-        // TODO: Make sure this is the correct way / there may be a better way?
-        self.restart_helper.restart_progress_should_run(state)
+    fn should_restart(&mut self, state: &mut Self::State) -> Result<bool, Error> {
+        // Calibration stage disallow restarts
+        // If a testcase that causes crash/timeout in the queue, we need to remove it from the queue immediately.
+        RetryCountRestartHelper::no_retry(state, &self.name)
+
+        // todo
+        // remove this guy from corpus queue
     }
 
-    fn clear_restart_progress(&mut self, state: &mut Self::State) -> Result<(), Error> {
+    fn clear_progress(&mut self, state: &mut Self::State) -> Result<(), Error> {
         // TODO: Make sure this is the correct way / there may be a better way?
-        self.restart_helper.clear_restart_progress(state)
+        RetryCountRestartHelper::clear_progress(state, &self.name)
     }
 }
 
-impl<O, OT, S> CalibrationStage<O, OT, S>
+impl<C, E, O, OT> CalibrationStage<C, E, O, OT>
 where
     O: MapObserver,
-    OT: ObserversTuple<S>,
-    S: HasCorpus + HasMetadata + HasNamedMetadata,
+    for<'it> O: AsIter<'it, Item = O::Entry>,
+    C: AsRef<O>,
+    OT: ObserversTuple<<Self as UsesInput>::Input, <Self as UsesState>::State>,
+    E: UsesState,
 {
     /// Create a new [`CalibrationStage`].
     #[must_use]
     pub fn new<F>(map_feedback: &F) -> Self
     where
-        F: HasObserverName + Named + UsesObserver<S, Observer = O>,
-        for<'it> O: AsIter<'it, Item = O::Entry>,
+        F: HasObserverHandle<Observer = C> + Named,
     {
+        let map_name = map_feedback.name().clone();
         Self {
-            map_observer_name: map_feedback.observer_name().to_string(),
-            map_name: map_feedback.name().to_string(),
+            map_observer_handle: map_feedback.observer_handle().clone(),
+            map_name: map_name.clone(),
             stage_max: CAL_STAGE_START,
             track_stability: true,
-            restart_helper: ExecutionCountRestartHelper::default(),
             phantom: PhantomData,
+            name: Cow::Owned(
+                CALIBRATION_STAGE_NAME.to_owned() + ":" + map_name.into_owned().as_str(),
+            ),
         }
     }
 
@@ -365,16 +410,16 @@ where
     #[must_use]
     pub fn ignore_stability<F>(map_feedback: &F) -> Self
     where
-        F: HasObserverName + Named + UsesObserver<S, Observer = O>,
-        for<'it> O: AsIter<'it, Item = O::Entry>,
+        F: HasObserverHandle<Observer = C> + Named,
     {
-        Self {
-            map_observer_name: map_feedback.observer_name().to_string(),
-            map_name: map_feedback.name().to_string(),
-            stage_max: CAL_STAGE_START,
-            track_stability: false,
-            restart_helper: ExecutionCountRestartHelper::default(),
-            phantom: PhantomData,
-        }
+        let mut ret = Self::new(map_feedback);
+        ret.track_stability = false;
+        ret
+    }
+}
+
+impl<C, E, O, OT> Named for CalibrationStage<C, E, O, OT> {
+    fn name(&self) -> &Cow<'static, str> {
+        &self.name
     }
 }

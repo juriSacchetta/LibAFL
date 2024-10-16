@@ -1,32 +1,18 @@
+//! The [`FRIDA`](https://frida.re) `CmpLog` runtime
+//!
 //! Functionality for [`frida`](https://frida.re)-based binary-only `CmpLog`.
 //! With it, a fuzzer can collect feedback about each compare that happened in the target
 //! This allows the fuzzer to potentially solve the compares, if a compare value is directly
 //! related to the input.
 //! Read the [`RedQueen`](https://www.ndss-symposium.org/ndss-paper/redqueen-fuzzing-with-input-to-state-correspondence/) paper for the general concepts.
 
-#[cfg(all(feature = "cmplog", target_arch = "x86_64"))]
-use std::collections::HashMap;
-
-use dynasmrt::dynasm;
-#[cfg(target_arch = "aarch64")]
-use dynasmrt::{DynasmApi, DynasmLabelApi};
-use libafl::{
-    inputs::{HasTargetBytes, Input},
-    Error,
-};
-use libafl_targets::CMPLOG_MAP_W;
-use rangemap::RangeMap;
-
-use crate::helper::FridaRuntime;
-extern "C" {
-    /// Tracks cmplog instructions
-    pub fn __libafl_targets_cmplog_instructions(k: u64, shape: u8, arg1: u64, arg2: u64);
-}
-
 #[cfg(target_arch = "aarch64")]
 use core::ffi::c_void;
 use std::rc::Rc;
 
+use dynasmrt::dynasm;
+#[cfg(target_arch = "aarch64")]
+use dynasmrt::{DynasmApi, DynasmLabelApi};
 use frida_gum::ModuleMap;
 #[cfg(target_arch = "x86_64")]
 use frida_gum::{instruction_writer::InstructionWriter, stalker::StalkerOutput};
@@ -37,11 +23,20 @@ use frida_gum::{
 };
 use frida_gum_sys::Insn;
 #[cfg(all(feature = "cmplog", target_arch = "x86_64"))]
+use hashbrown::HashMap;
+#[cfg(all(feature = "cmplog", target_arch = "x86_64"))]
 use iced_x86::{
     BlockEncoder, Code, DecoderOptions, Instruction, InstructionBlock, MemoryOperand, MemorySize,
     OpKind, Register,
 };
+use libafl::{
+    inputs::{HasTargetBytes, Input},
+    Error,
+};
+use libafl_targets::{cmps::__libafl_targets_cmplog_instructions, CMPLOG_MAP_W};
+use rangemap::RangeMap;
 
+use crate::helper::FridaRuntime;
 #[cfg(all(feature = "cmplog", target_arch = "aarch64"))]
 use crate::utils::{disas_count, writer_register};
 
@@ -135,6 +130,8 @@ impl FridaRuntime for CmpLogRuntime {
         self.generate_instrumentation_blobs();
     }
 
+    fn deinit(&mut self, _gum: &frida_gum::Gum) {}
+
     fn pre_exec<I: Input + HasTargetBytes>(&mut self, _input: &I) -> Result<(), Error> {
         Ok(())
     }
@@ -179,7 +176,7 @@ impl CmpLogRuntime {
         k &= (CMPLOG_MAP_W as u64) - 1;
 
         unsafe {
-            __libafl_targets_cmplog_instructions(k, 8, op1, op2);
+            __libafl_targets_cmplog_instructions(k as usize, 8, op1, op2);
         }
     }
 
@@ -195,7 +192,7 @@ impl CmpLogRuntime {
         k &= (CMPLOG_MAP_W as u64) - 1;
 
         unsafe {
-            __libafl_targets_cmplog_instructions(k, size, op1, op2);
+            __libafl_targets_cmplog_instructions(k as usize, size, op1, op2);
         }
     }
 
@@ -753,7 +750,7 @@ impl CmpLogRuntime {
     }
 
     #[cfg(all(feature = "cmplog", target_arch = "aarch64"))]
-    #[allow(clippy::similar_names)]
+    #[allow(clippy::similar_names, clippy::type_complexity)]
     #[inline]
     /// Check if the current instruction is cmplog relevant one(any opcode which sets the flags)
     #[must_use]
@@ -772,7 +769,7 @@ impl CmpLogRuntime {
             .operands
             .iter()
             .position(|item| *item == Operand::Nothing)
-            .unwrap_or_else(|| 4);
+            .unwrap_or(4);
         // "cmp" | "ands" | "subs" | "adds" | "negs" | "ngcs" | "sbcs" | "bics" | "cbz"
         //    | "cbnz" | "tbz" | "tbnz" | "adcs" - yaxpeax aliases insns (i.e., cmp -> subs)
         // We only care for compare instructions - aka instructions which set the flags
@@ -853,14 +850,14 @@ impl CmpLogRuntime {
                     None,
                 )),
                 Operand::ImmShift(imm, shift) => {
-                    Some((CmplogOperandType::Imm((imm as u64) << shift), None))
+                    Some((CmplogOperandType::Imm(u64::from(imm) << shift), None))
                 } //precalculate the shift
                 Operand::RegShift(shiftstyle, amount, regsize, reg) => {
                     let reg = CmplogOperandType::Regid(writer_register(reg, regsize, true));
                     let shift = (shiftstyle, amount);
                     Some((reg, Some(shift)))
                 }
-                Operand::Immediate(imm) => Some((CmplogOperandType::Imm(imm as u64), None)),
+                Operand::Immediate(imm) => Some((CmplogOperandType::Imm(u64::from(imm)), None)),
                 _ => panic!("Second argument could not be decoded"),
             }
         };

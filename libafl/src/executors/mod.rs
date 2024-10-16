@@ -15,15 +15,12 @@ pub use inprocess::InProcessExecutor;
 pub use inprocess_fork::InProcessForkExecutor;
 #[cfg(unix)]
 use libafl_bolts::os::unix_signals::Signal;
+use libafl_bolts::tuples::RefIndexable;
 use serde::{Deserialize, Serialize};
 pub use shadow::ShadowExecutor;
 pub use with_observers::WithObservers;
 
-use crate::{
-    observers::{ObserversTuple, UsesObservers},
-    state::UsesState,
-    Error,
-};
+use crate::{observers::ObserversTuple, state::UsesState, Error};
 
 pub mod combined;
 #[cfg(all(feature = "std", any(unix, doc)))]
@@ -108,12 +105,15 @@ impl From<ExitKind> for DiffExitKind {
 libafl_bolts::impl_serdeany!(DiffExitKind);
 
 /// Holds a tuple of Observers
-pub trait HasObservers: UsesObservers {
+pub trait HasObservers {
+    /// The observer
+    type Observers;
+
     /// Get the linked observers
-    fn observers(&self) -> &Self::Observers;
+    fn observers(&self) -> RefIndexable<&Self::Observers, Self::Observers>;
 
     /// Get the linked observers (mutable)
-    fn observers_mut(&mut self) -> &mut Self::Observers;
+    fn observers_mut(&mut self) -> RefIndexable<&mut Self::Observers, Self::Observers>;
 }
 
 /// An executor takes the given inputs, and runs the harness/target.
@@ -138,7 +138,7 @@ where
     fn with_observers<OT>(self, observers: OT) -> WithObservers<Self, OT>
     where
         Self: Sized,
-        OT: ObserversTuple<Self::State>,
+        OT: ObserversTuple<Self::Input, Self::State>,
     {
         WithObservers::new(self, observers)
     }
@@ -164,7 +164,7 @@ pub fn common_signals() -> Vec<Signal> {
 }
 
 #[cfg(test)]
-pub mod test {
+mod test {
     use core::marker::PhantomData;
 
     use libafl_bolts::{AsSlice, Error};
@@ -172,7 +172,7 @@ pub mod test {
     use crate::{
         events::NopEventManager,
         executors::{Executor, ExitKind},
-        fuzzer::test::NopFuzzer,
+        fuzzer::NopFuzzer,
         inputs::{BytesInput, HasTargetBytes},
         state::{HasExecutions, NopState, State, UsesState},
     };
@@ -185,6 +185,7 @@ pub mod test {
     }
 
     impl<S> NopExecutor<S> {
+        /// Creates a new [`NopExecutor`]
         #[must_use]
         pub fn new() -> Self {
             Self {
@@ -255,276 +256,5 @@ pub mod test {
                 &nonempty_input,
             )
             .unwrap();
-    }
-}
-
-#[cfg(feature = "python")]
-#[allow(missing_docs)]
-/// `Executor` Python bindings
-pub mod pybind {
-    use pyo3::prelude::*;
-    use serde::{Deserialize, Serialize};
-
-    use crate::{
-        events::pybind::PythonEventManager,
-        executors::{
-            inprocess::pybind::PythonOwnedInProcessExecutor, Executor, ExitKind, HasObservers,
-        },
-        fuzzer::pybind::{PythonStdFuzzer, PythonStdFuzzerWrapper},
-        inputs::HasBytesVec,
-        observers::{pybind::PythonObserversTuple, UsesObservers},
-        state::{
-            pybind::{PythonStdState, PythonStdStateWrapper},
-            UsesState,
-        },
-        Error,
-    };
-
-    #[pyclass(unsendable, name = "ExitKind")]
-    #[allow(clippy::unsafe_derive_deserialize)]
-    #[derive(Clone, Debug, Serialize, Deserialize)]
-    pub struct PythonExitKind {
-        pub inner: ExitKind,
-    }
-
-    impl From<ExitKind> for PythonExitKind {
-        fn from(inner: ExitKind) -> Self {
-            Self { inner }
-        }
-    }
-
-    #[pymethods]
-    impl PythonExitKind {
-        fn __eq__(&self, other: &PythonExitKind) -> bool {
-            self.inner == other.inner
-        }
-
-        #[must_use]
-        fn is_ok(&self) -> bool {
-            self.inner == ExitKind::Ok
-        }
-
-        #[must_use]
-        fn is_crash(&self) -> bool {
-            self.inner == ExitKind::Crash
-        }
-
-        #[must_use]
-        fn is_oom(&self) -> bool {
-            self.inner == ExitKind::Oom
-        }
-
-        #[must_use]
-        fn is_timeout(&self) -> bool {
-            self.inner == ExitKind::Timeout
-        }
-
-        #[staticmethod]
-        #[must_use]
-        fn ok() -> Self {
-            Self {
-                inner: ExitKind::Ok,
-            }
-        }
-
-        #[staticmethod]
-        #[must_use]
-        fn crash() -> Self {
-            Self {
-                inner: ExitKind::Crash,
-            }
-        }
-
-        #[staticmethod]
-        #[must_use]
-        fn oom() -> Self {
-            Self {
-                inner: ExitKind::Oom,
-            }
-        }
-
-        #[staticmethod]
-        #[must_use]
-        fn timeout() -> Self {
-            Self {
-                inner: ExitKind::Timeout,
-            }
-        }
-    }
-
-    #[derive(Clone, Debug)]
-    pub struct PyObjectExecutor {
-        inner: PyObject,
-        tuple: PythonObserversTuple,
-    }
-
-    impl PyObjectExecutor {
-        #[must_use]
-        pub fn new(obj: PyObject) -> Self {
-            let tuple = Python::with_gil(|py| -> PyResult<PythonObserversTuple> {
-                obj.call_method1(py, "observers", ())?.extract(py)
-            })
-            .unwrap();
-            PyObjectExecutor { inner: obj, tuple }
-        }
-    }
-
-    impl UsesState for PyObjectExecutor {
-        type State = PythonStdState;
-    }
-
-    impl UsesObservers for PyObjectExecutor {
-        type Observers = PythonObserversTuple;
-    }
-
-    impl HasObservers for PyObjectExecutor {
-        #[inline]
-        fn observers(&self) -> &PythonObserversTuple {
-            &self.tuple
-        }
-
-        #[inline]
-        fn observers_mut(&mut self) -> &mut PythonObserversTuple {
-            &mut self.tuple
-        }
-    }
-
-    impl Executor<PythonEventManager, PythonStdFuzzer> for PyObjectExecutor {
-        #[inline]
-        fn run_target(
-            &mut self,
-            fuzzer: &mut PythonStdFuzzer,
-            state: &mut Self::State,
-            mgr: &mut PythonEventManager,
-            input: &Self::Input,
-        ) -> Result<ExitKind, Error> {
-            let ek = Python::with_gil(|py| -> PyResult<_> {
-                let ek: PythonExitKind = self
-                    .inner
-                    .call_method1(
-                        py,
-                        "run_target",
-                        (
-                            PythonStdFuzzerWrapper::wrap(fuzzer),
-                            PythonStdStateWrapper::wrap(state),
-                            mgr.clone(),
-                            input.bytes(),
-                        ),
-                    )?
-                    .extract(py)?;
-                Ok(ek)
-            })?;
-            Ok(ek.inner)
-        }
-    }
-
-    #[derive(Clone, Debug)]
-    enum PythonExecutorWrapper {
-        InProcess(Py<PythonOwnedInProcessExecutor>),
-        Python(PyObjectExecutor),
-    }
-
-    #[pyclass(unsendable, name = "Executor")]
-    #[derive(Clone, Debug)]
-    /// Executor<Input = I> + HasObservers Trait binding
-    pub struct PythonExecutor {
-        wrapper: PythonExecutorWrapper,
-    }
-
-    macro_rules! unwrap_me {
-        ($wrapper:expr, $name:ident, $body:block) => {
-            libafl_bolts::unwrap_me_body!($wrapper, $name, $body, PythonExecutorWrapper,
-                { InProcess },
-                {
-                    Python(py_wrapper) => {
-                        let $name = py_wrapper;
-                        $body
-                    }
-                }
-            )
-        };
-    }
-
-    macro_rules! unwrap_me_mut {
-        ($wrapper:expr, $name:ident, $body:block) => {
-            libafl_bolts::unwrap_me_mut_body!($wrapper, $name, $body, PythonExecutorWrapper,
-                { InProcess },
-                {
-                    Python(py_wrapper) => {
-                        let $name = py_wrapper;
-                        $body
-                    }
-                }
-            )
-        };
-    }
-
-    #[pymethods]
-    impl PythonExecutor {
-        #[staticmethod]
-        #[must_use]
-        pub fn new_inprocess(owned_inprocess_executor: Py<PythonOwnedInProcessExecutor>) -> Self {
-            Self {
-                wrapper: PythonExecutorWrapper::InProcess(owned_inprocess_executor),
-            }
-        }
-
-        #[staticmethod]
-        #[must_use]
-        pub fn new_py(obj: PyObject) -> Self {
-            Self {
-                wrapper: PythonExecutorWrapper::Python(PyObjectExecutor::new(obj)),
-            }
-        }
-
-        #[must_use]
-        pub fn unwrap_py(&self) -> Option<PyObject> {
-            match &self.wrapper {
-                PythonExecutorWrapper::Python(pyo) => Some(pyo.inner.clone()),
-                PythonExecutorWrapper::InProcess(_) => None,
-            }
-        }
-    }
-
-    impl UsesState for PythonExecutor {
-        type State = PythonStdState;
-    }
-
-    impl UsesObservers for PythonExecutor {
-        type Observers = PythonObserversTuple;
-    }
-
-    impl HasObservers for PythonExecutor {
-        #[inline]
-        fn observers(&self) -> &PythonObserversTuple {
-            let ptr = unwrap_me!(self.wrapper, e, { core::ptr::from_ref(e.observers()) });
-            unsafe { ptr.as_ref().unwrap() }
-        }
-
-        #[inline]
-        fn observers_mut(&mut self) -> &mut PythonObserversTuple {
-            let ptr = unwrap_me_mut!(self.wrapper, e, { core::ptr::from_mut(e.observers_mut()) });
-            unsafe { ptr.as_mut().unwrap() }
-        }
-    }
-
-    impl Executor<PythonEventManager, PythonStdFuzzer> for PythonExecutor {
-        #[inline]
-        fn run_target(
-            &mut self,
-            fuzzer: &mut PythonStdFuzzer,
-            state: &mut Self::State,
-            mgr: &mut PythonEventManager,
-            input: &Self::Input,
-        ) -> Result<ExitKind, Error> {
-            unwrap_me_mut!(self.wrapper, e, { e.run_target(fuzzer, state, mgr, input) })
-        }
-    }
-
-    /// Register the classes to the python module
-    pub fn register(_py: Python, m: &PyModule) -> PyResult<()> {
-        m.add_class::<PythonExitKind>()?;
-        m.add_class::<PythonExecutor>()?;
-        Ok(())
     }
 }

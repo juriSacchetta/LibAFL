@@ -1,7 +1,8 @@
 //! An [`EventManager`] manages all events that go to other instances of the fuzzer.
 //! The messages are commonly information about new Testcases as well as stats and other [`Event`]s.
 
-pub mod hooks;
+pub mod events_hooks;
+pub use events_hooks::*;
 
 pub mod simple;
 pub use simple::*;
@@ -15,13 +16,12 @@ pub mod launcher;
 #[allow(clippy::ignored_unit_patterns)]
 pub mod llmp;
 pub use llmp::*;
-
 #[cfg(feature = "tcp_manager")]
 #[allow(clippy::ignored_unit_patterns)]
 pub mod tcp;
-#[cfg(feature = "scalability_introspection")]
-use alloc::string::ToString;
-use alloc::{boxed::Box, string::String, vec::Vec};
+
+pub mod broker_hooks;
+use alloc::{borrow::Cow, boxed::Box, string::String, vec::Vec};
 use core::{
     fmt,
     hash::{BuildHasher, Hasher},
@@ -30,11 +30,18 @@ use core::{
 };
 
 use ahash::RandomState;
+pub use broker_hooks::*;
 #[cfg(feature = "std")]
 pub use launcher::*;
 #[cfg(all(unix, feature = "std"))]
-use libafl_bolts::os::unix_signals::{siginfo_t, ucontext_t, Handler, Signal};
-use libafl_bolts::{current_time, ClientId};
+use libafl_bolts::os::unix_signals::{siginfo_t, ucontext_t, Signal, SignalHandler};
+#[cfg(all(unix, feature = "std"))]
+use libafl_bolts::os::CTRL_C_EXIT;
+use libafl_bolts::{
+    current_time,
+    tuples::{Handle, MatchNameRef},
+    ClientId,
+};
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "std")]
 use uuid::Uuid;
@@ -46,8 +53,8 @@ use crate::{
     inputs::Input,
     monitors::UserStats,
     observers::ObserversTuple,
-    state::{HasExecutions, HasLastReportTime, HasMetadata, State},
-    Error,
+    state::{HasExecutions, HasLastReportTime, State},
+    Error, HasMetadata,
 };
 #[cfg(feature = "scalability_introspection")]
 use crate::{
@@ -55,63 +62,41 @@ use crate::{
     state::HasScalabilityMonitor,
 };
 
+/// Multi-machine mode
+#[cfg(all(unix, feature = "std", feature = "multi_machine"))]
+pub mod multi_machine;
+
 /// Check if ctrl-c is sent with this struct
 #[cfg(all(unix, feature = "std"))]
-pub static mut EVENTMGR_SIGHANDLER_STATE: ShutdownSignalData = ShutdownSignalData {
-    shutting_down: false,
-    exit_from_main: false,
-};
+pub static mut EVENTMGR_SIGHANDLER_STATE: ShutdownSignalData = ShutdownSignalData {};
 
-/// A signal handler for releasing `StateRestore` `ShMem`
-/// This struct holds a pointer to `StateRestore` and clean up the `ShMem` segment used by it.
+/// A signal handler for catching `ctrl-c`.
+///
+/// The purpose of this signal handler is solely for calling `exit()` with a specific exit code 100
+/// In this way, the restarting manager can tell that we really want to exit
 #[cfg(all(unix, feature = "std"))]
 #[derive(Debug, Clone)]
-pub struct ShutdownSignalData {
-    shutting_down: bool,
-    exit_from_main: bool,
-}
-
-#[cfg(all(unix, feature = "std"))]
-impl ShutdownSignalData {
-    /// Set the flag to true, indicating that this process has allocated shmem
-    pub fn set_exit_from_main(&mut self) {
-        unsafe {
-            core::ptr::write_volatile(core::ptr::addr_of_mut!(self.exit_from_main), true);
-        }
-    }
-}
+pub struct ShutdownSignalData {}
 
 /// Shutdown handler. `SigTerm`, `SigInterrupt`, `SigQuit` call this
 /// We can't handle SIGKILL in the signal handler, this means that you shouldn't kill your fuzzer with `kill -9` because then the shmem segments are never freed
+///
+/// # Safety
+/// This will exit the program
 #[cfg(all(unix, feature = "std"))]
-impl Handler for ShutdownSignalData {
-    fn handle(
+impl SignalHandler for ShutdownSignalData {
+    unsafe fn handle(
         &mut self,
         _signal: Signal,
         _info: &mut siginfo_t,
         _context: Option<&mut ucontext_t>,
     ) {
-        /*
-        println!(
-            "in handler! {} {}",
-            self.exit_from_main,
-            std::process::id()
-        );
-        */
-        // if this process has not allocated any shmem. then simply exit()
-        if !self.exit_from_main {
-            unsafe {
-                #[cfg(unix)]
-                libc::_exit(0);
-
-                #[cfg(windows)]
-                windows::Win32::System::Threading::ExitProcess(1);
-            }
-        }
-
-        // else wait till the next is_shutting_down() is called. then the process will exit throught main().
         unsafe {
-            core::ptr::write_volatile(core::ptr::addr_of_mut!(self.shutting_down), true);
+            #[cfg(unix)]
+            libc::_exit(CTRL_C_EXIT);
+
+            #[cfg(windows)]
+            windows::Win32::System::Threading::ExitProcess(100);
         }
     }
 
@@ -121,7 +106,7 @@ impl Handler for ShutdownSignalData {
 }
 
 /// A per-fuzzer unique `ID`, usually starting with `0` and increasing
-/// by `1` in multiprocessed [`EventManager`]s, such as [`self::llmp::LlmpEventManager`].
+/// by `1` in multiprocessed [`EventManager`]s, such as [`LlmpEventManager`].
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct EventManagerId(
@@ -129,9 +114,13 @@ pub struct EventManagerId(
     pub usize,
 );
 
+#[cfg(all(unix, feature = "std", feature = "multi_machine"))]
+use crate::events::multi_machine::NodeId;
 #[cfg(feature = "introspection")]
 use crate::monitors::ClientPerfMonitor;
-use crate::{inputs::UsesInput, stages::HasCurrentStage, state::UsesState};
+use crate::{
+    inputs::UsesInput, observers::TimeObserver, stages::HasCurrentStageId, state::UsesState,
+};
 
 /// The log event severity
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
@@ -224,7 +213,7 @@ impl EventConfig {
         }
     }
 
-    /// Match if the currenti [`EventConfig`] matches another given config
+    /// Match if the current [`EventConfig`] matches another given config
     #[must_use]
     pub fn match_with(&self, other: &EventConfig) -> bool {
         match self {
@@ -298,10 +287,11 @@ where
         client_config: EventConfig,
         /// The time of generation of the event
         time: Duration,
-        /// The executions of this client
-        executions: u64,
         /// The original sender if, if forwarded
         forward_id: Option<ClientId>,
+        /// The (multi-machine) node from which the tc is from, if any
+        #[cfg(all(unix, feature = "std", feature = "multi_machine"))]
+        node_id: Option<NodeId>,
     },
     /// New stats event to monitor.
     UpdateExecStats {
@@ -315,7 +305,7 @@ where
     /// New user stats event to monitor.
     UpdateUserStats {
         /// Custom user monitor name
-        name: String,
+        name: Cow<'static, str>,
         /// Custom user monitor value
         value: UserStats,
         /// [`PhantomData`]
@@ -338,8 +328,6 @@ where
     Objective {
         /// Objective corpus size
         objective_size: usize,
-        /// The total number of executions when this objective is found
-        executions: u64,
         /// The time when this event was created
         time: Duration,
     },
@@ -359,6 +347,8 @@ where
         /// Tag of this buffer
         tag: String,
     },
+    /// Exit gracefully
+    Stop,
     /*/// A custom type
     Custom {
         // TODO: Allow custom events
@@ -370,54 +360,55 @@ impl<I> Event<I>
 where
     I: Input,
 {
-    fn name(&self) -> &str {
+    /// Event's corresponding name
+    pub fn name(&self) -> &str {
         match self {
-            Event::NewTestcase {
-                input: _,
-                client_config: _,
-                corpus_size: _,
-                exit_kind: _,
-                observers_buf: _,
-                time: _,
-                executions: _,
-                forward_id: _,
-            } => "Testcase",
-            Event::UpdateExecStats {
-                time: _,
-                executions: _,
-                phantom: _,
-            }
-            | Event::UpdateUserStats {
-                name: _,
-                value: _,
-                phantom: _,
-            } => "Stats",
+            Event::NewTestcase { .. } => "Testcase",
+            Event::UpdateExecStats { .. } => "Client Heartbeat",
+            Event::UpdateUserStats { .. } => "UserStats",
             #[cfg(feature = "introspection")]
-            Event::UpdatePerfMonitor {
-                time: _,
-                executions: _,
-                introspection_monitor: _,
-                phantom: _,
-            } => "PerfMonitor",
+            Event::UpdatePerfMonitor { .. } => "PerfMonitor",
             Event::Objective { .. } => "Objective",
-            Event::Log {
-                severity_level: _,
-                message: _,
-                phantom: _,
-            } => "Log",
+            Event::Log { .. } => "Log",
             Event::CustomBuf { .. } => "CustomBuf",
+            /*Event::Custom {
+                sender_id: _, /*custom_event} => custom_event.name()*/
+            } => "todo",*/
+            Event::Stop => "Stop",
+        }
+    }
+
+    /// Event's corresponding name with additional info
+    fn name_detailed(&self) -> Cow<'static, str> {
+        match self {
+            Event::NewTestcase { input, .. } => {
+                Cow::Owned(format!("Testcase {}", input.generate_name(None)))
+            }
+            Event::UpdateExecStats { .. } => Cow::Borrowed("Client Heartbeat"),
+            Event::UpdateUserStats { .. } => Cow::Borrowed("UserStats"),
+            #[cfg(feature = "introspection")]
+            Event::UpdatePerfMonitor { .. } => Cow::Borrowed("PerfMonitor"),
+            Event::Objective { .. } => Cow::Borrowed("Objective"),
+            Event::Log { .. } => Cow::Borrowed("Log"),
+            Event::CustomBuf { .. } => Cow::Borrowed("CustomBuf"),
+            Event::Stop => Cow::Borrowed("Stop"),
             /*Event::Custom {
                 sender_id: _, /*custom_event} => custom_event.name()*/
             } => "todo",*/
         }
     }
+
+    /// Returns true if self is a new testcase, false otherwise.
+    pub fn is_new_testcase(&self) -> bool {
+        matches!(self, Event::NewTestcase { .. })
+    }
 }
 
-/// [`EventFirer`] fire an event.
+/// [`EventFirer`] fires an event.
 pub trait EventFirer: UsesState {
     /// Send off an [`Event`] to the broker
     ///
-    /// For multi-processed managers, such as [`llmp::LlmpEventManager`],
+    /// For multi-processed managers, such as [`LlmpEventManager`],
     /// this serializes the [`Event`] and commits it to the [`llmp`] page.
     /// In this case, if you `fire` faster than the broker can consume
     /// (for example for each [`Input`], on multiple cores)
@@ -450,7 +441,7 @@ pub trait EventFirer: UsesState {
     /// Serialize all observers for this type and manager
     fn serialize_observers<OT>(&mut self, observers: &OT) -> Result<Option<Vec<u8>>, Error>
     where
-        OT: ObserversTuple<Self::State> + Serialize,
+        OT: ObserversTuple<<Self as UsesInput>::Input, Self::State> + Serialize,
     {
         Ok(Some(postcard::to_allocvec(observers)?))
     }
@@ -459,6 +450,9 @@ pub trait EventFirer: UsesState {
     fn configuration(&self) -> EventConfig {
         EventConfig::AlwaysUnique
     }
+
+    /// Return if we really send this event or not
+    fn should_send(&self) -> bool;
 }
 
 /// [`ProgressReporter`] report progress to the broker.
@@ -468,7 +462,7 @@ where
 {
     /// Given the last time, if `monitor_timeout` seconds passed, send off an info/monitor/heartbeat message to the broker.
     /// Returns the new `last` time (so the old one, unless `monitor_timeout` time has passed and monitor have been sent)
-    /// Will return an [`crate::Error`], if the stats could not be sent.
+    /// Will return an [`Error`], if the stats could not be sent.
     fn maybe_report_progress(
         &mut self,
         state: &mut Self::State,
@@ -489,7 +483,7 @@ where
     }
 
     /// Send off an info/monitor/heartbeat message to the broker.
-    /// Will return an [`crate::Error`], if the stats could not be sent.
+    /// Will return an [`Error`], if the stats could not be sent.
     fn report_progress(&mut self, state: &mut Self::State) -> Result<(), Error> {
         let executions = *state.executions();
         let cur = current_time();
@@ -534,7 +528,7 @@ where
             self.fire(
                 state,
                 Event::UpdateUserStats {
-                    name: "total imported".to_string(),
+                    name: Cow::from("total imported"),
                     value: UserStats::new(
                         UserStatsValue::Number(
                             (imported_with_observer + imported_without_observer) as u64,
@@ -555,7 +549,7 @@ where
 /// Restartable trait
 pub trait EventRestarter: UsesState {
     /// For restarting event managers, implement a way to forward state to their next peers.
-    /// You *must* ensure that [`HasCurrentStage::on_restart`] will be invoked in this method, by you
+    /// You *must* ensure that [`HasCurrentStageId::on_restart`] will be invoked in this method, by you
     /// or an internal [`EventRestarter`], before the state is saved for recovery.
     #[inline]
     fn on_restart(&mut self, state: &mut Self::State) -> Result<(), Error> {
@@ -585,6 +579,9 @@ pub trait EventProcessor<E, Z>: UsesState {
         state: &mut Self::State,
         executor: &mut E,
     ) -> Result<usize, Error>;
+
+    /// Shutdown gracefully; typically without saving state.
+    fn on_shutdown(&mut self) -> Result<(), Error>;
 }
 /// The id of this [`EventManager`].
 /// For multi processed [`EventManager`]s,
@@ -646,6 +643,10 @@ impl<S> EventFirer for NopEventManager<S>
 where
     S: State,
 {
+    fn should_send(&self) -> bool {
+        true
+    }
+
     fn fire(
         &mut self,
         _state: &mut Self::State,
@@ -668,6 +669,10 @@ where
         _executor: &mut E,
     ) -> Result<usize, Error> {
         Ok(0)
+    }
+
+    fn on_shutdown(&mut self) -> Result<(), Error> {
+        Ok(())
     }
 }
 
@@ -730,6 +735,10 @@ impl<EM, M> EventFirer for MonitorTypedEventManager<EM, M>
 where
     EM: EventFirer,
 {
+    fn should_send(&self) -> bool {
+        true
+    }
+
     #[inline]
     fn fire(
         &mut self,
@@ -752,7 +761,7 @@ where
     #[inline]
     fn serialize_observers<OT>(&mut self, observers: &OT) -> Result<Option<Vec<u8>>, Error>
     where
-        OT: ObserversTuple<Self::State> + Serialize,
+        OT: ObserversTuple<<Self as UsesInput>::Input, Self::State> + Serialize,
     {
         self.inner.serialize_observers(observers)
     }
@@ -796,12 +805,16 @@ where
     ) -> Result<usize, Error> {
         self.inner.process(fuzzer, state, executor)
     }
+
+    fn on_shutdown(&mut self) -> Result<(), Error> {
+        self.inner.on_shutdown()
+    }
 }
 
 impl<E, EM, M, Z> EventManager<E, Z> for MonitorTypedEventManager<EM, M>
 where
     EM: EventManager<E, Z>,
-    EM::State: HasLastReportTime + HasExecutions + HasMetadata,
+    Self::State: HasLastReportTime + HasExecutions + HasMetadata,
 {
 }
 
@@ -825,7 +838,7 @@ impl<EM, M> ProgressReporter for MonitorTypedEventManager<EM, M>
 where
     Self: UsesState,
     EM: ProgressReporter<State = Self::State>,
-    EM::State: HasLastReportTime + HasExecutions + HasMetadata,
+    Self::State: HasLastReportTime + HasExecutions + HasMetadata,
 {
     #[inline]
     fn maybe_report_progress(
@@ -852,10 +865,84 @@ where
     }
 }
 
+/// Collected stats to decide if observers must be serialized or not
+pub trait AdaptiveSerializer {
+    /// Expose the collected observers serialization time
+    fn serialization_time(&self) -> Duration;
+    /// Expose the collected observers deserialization time
+    fn deserialization_time(&self) -> Duration;
+    /// How many times observers were serialized
+    fn serializations_cnt(&self) -> usize;
+    /// How many times shoukd have been serialized an observer
+    fn should_serialize_cnt(&self) -> usize;
+
+    /// Expose the collected observers serialization time (mut)
+    fn serialization_time_mut(&mut self) -> &mut Duration;
+    /// Expose the collected observers deserialization time (mut)
+    fn deserialization_time_mut(&mut self) -> &mut Duration;
+    /// How many times observers were serialized (mut)
+    fn serializations_cnt_mut(&mut self) -> &mut usize;
+    /// How many times shoukd have been serialized an observer (mut)
+    fn should_serialize_cnt_mut(&mut self) -> &mut usize;
+
+    /// A [`Handle`] to the time observer to determine the `time_factor`
+    fn time_ref(&self) -> &Option<Handle<TimeObserver>>;
+
+    /// Serialize the observer using the `time_factor` and `percentage_threshold`.
+    /// These parameters are unique to each of the different types of `EventManager`
+    fn serialize_observers_adaptive<S, OT>(
+        &mut self,
+        observers: &OT,
+        time_factor: u32,
+        percentage_threshold: usize,
+    ) -> Result<Option<Vec<u8>>, Error>
+    where
+        OT: ObserversTuple<S::Input, S> + Serialize,
+        S: UsesInput,
+    {
+        match self.time_ref() {
+            Some(t) => {
+                let exec_time = observers
+                    .get(t)
+                    .map(|o| o.last_runtime().unwrap_or(Duration::ZERO))
+                    .unwrap();
+
+                let mut must_ser = (self.serialization_time() + self.deserialization_time())
+                    * time_factor
+                    < exec_time;
+                if must_ser {
+                    *self.should_serialize_cnt_mut() += 1;
+                }
+
+                if self.serializations_cnt() > 32 {
+                    must_ser = (self.should_serialize_cnt() * 100 / self.serializations_cnt())
+                        > percentage_threshold;
+                }
+
+                if self.serialization_time() == Duration::ZERO
+                    || must_ser
+                    || self.serializations_cnt().trailing_zeros() >= 8
+                {
+                    let start = current_time();
+                    let ser = postcard::to_allocvec(observers)?;
+                    *self.serialization_time_mut() = current_time() - start;
+
+                    *self.serializations_cnt_mut() += 1;
+                    Ok(Some(ser))
+                } else {
+                    *self.serializations_cnt_mut() += 1;
+                    Ok(None)
+                }
+            }
+            None => Ok(None),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
-    use core::ptr::addr_of_mut;
+    use core::ptr::{addr_of, addr_of_mut};
 
     use libafl_bolts::{current_time, tuples::tuple_list, Named};
     use tuple_list::tuple_list_type;
@@ -872,7 +959,8 @@ mod tests {
     #[test]
     fn test_event_serde() {
         let obv = unsafe {
-            StdMapObserver::from_mut_ptr("test", addr_of_mut!(MAP) as *mut u32, MAP.len())
+            let len = (*addr_of!(MAP)).len();
+            StdMapObserver::from_mut_ptr("test", addr_of_mut!(MAP) as *mut u32, len)
         };
         let map = tuple_list!(obv);
         let observers_buf = postcard::to_allocvec(&map).unwrap();
@@ -885,126 +973,21 @@ mod tests {
             corpus_size: 123,
             client_config: EventConfig::AlwaysUnique,
             time: current_time(),
-            executions: 0,
             forward_id: None,
+            #[cfg(all(unix, feature = "std", feature = "multi_machine"))]
+            node_id: None,
         };
 
         let serialized = postcard::to_allocvec(&e).unwrap();
 
         let d = postcard::from_bytes::<Event<BytesInput>>(&serialized).unwrap();
         match d {
-            Event::NewTestcase {
-                input: _,
-                observers_buf,
-                corpus_size: _,
-                exit_kind: _,
-                client_config: _,
-                time: _,
-                executions: _,
-                forward_id: _,
-            } => {
+            Event::NewTestcase { observers_buf, .. } => {
                 let o: tuple_list_type!(StdMapObserver::<u32, false>) =
                     postcard::from_bytes(observers_buf.as_ref().unwrap()).unwrap();
                 assert_eq!("test", o.0.name());
             }
             _ => panic!("mistmatch"),
         };
-    }
-}
-
-/// `EventManager` Python bindings
-#[cfg(feature = "python")]
-#[allow(missing_docs)]
-pub mod pybind {
-    use pyo3::prelude::*;
-
-    use crate::{
-        events::{
-            simple::pybind::PythonSimpleEventManager, Event, EventFirer, EventManager,
-            EventManagerId, EventProcessor, EventRestarter, HasEventManagerId, ProgressReporter,
-        },
-        executors::pybind::PythonExecutor,
-        fuzzer::pybind::PythonStdFuzzer,
-        inputs::BytesInput,
-        state::{pybind::PythonStdState, UsesState},
-        Error,
-    };
-
-    #[derive(Debug, Clone)]
-    pub enum PythonEventManagerWrapper {
-        Simple(Py<PythonSimpleEventManager>),
-    }
-
-    /// EventManager Trait binding
-    #[pyclass(unsendable, name = "EventManager")]
-    #[derive(Debug, Clone)]
-    pub struct PythonEventManager {
-        pub wrapper: PythonEventManagerWrapper,
-    }
-
-    macro_rules! unwrap_me {
-        ($wrapper:expr, $name:ident, $body:block) => {
-            libafl_bolts::unwrap_me_body!($wrapper, $name, $body, PythonEventManagerWrapper, {
-                Simple
-            })
-        };
-    }
-
-    macro_rules! unwrap_me_mut {
-        ($wrapper:expr, $name:ident, $body:block) => {
-            libafl_bolts::unwrap_me_mut_body!($wrapper, $name, $body, PythonEventManagerWrapper, {
-                Simple
-            })
-        };
-    }
-
-    #[pymethods]
-    impl PythonEventManager {
-        #[staticmethod]
-        #[must_use]
-        pub fn new_simple(mgr: Py<PythonSimpleEventManager>) -> Self {
-            Self {
-                wrapper: PythonEventManagerWrapper::Simple(mgr),
-            }
-        }
-    }
-
-    impl UsesState for PythonEventManager {
-        type State = PythonStdState;
-    }
-
-    impl EventFirer for PythonEventManager {
-        fn fire(&mut self, state: &mut Self::State, event: Event<BytesInput>) -> Result<(), Error> {
-            unwrap_me_mut!(self.wrapper, e, { e.fire(state, event) })
-        }
-    }
-
-    impl EventRestarter for PythonEventManager {}
-
-    impl EventProcessor<PythonExecutor, PythonStdFuzzer> for PythonEventManager {
-        fn process(
-            &mut self,
-            fuzzer: &mut PythonStdFuzzer,
-            state: &mut PythonStdState,
-            executor: &mut PythonExecutor,
-        ) -> Result<usize, Error> {
-            unwrap_me_mut!(self.wrapper, e, { e.process(fuzzer, state, executor) })
-        }
-    }
-
-    impl ProgressReporter for PythonEventManager {}
-
-    impl HasEventManagerId for PythonEventManager {
-        fn mgr_id(&self) -> EventManagerId {
-            unwrap_me!(self.wrapper, e, { e.mgr_id() })
-        }
-    }
-
-    impl EventManager<PythonExecutor, PythonStdFuzzer> for PythonEventManager {}
-
-    /// Register the classes to the python module
-    pub fn register(_py: Python, m: &PyModule) -> PyResult<()> {
-        m.add_class::<PythonEventManager>()?;
-        Ok(())
     }
 }

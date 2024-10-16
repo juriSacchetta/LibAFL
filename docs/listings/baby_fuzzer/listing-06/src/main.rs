@@ -17,7 +17,7 @@ use libafl::{
     stages::mutational::StdMutationalStage,
     state::StdState,
 };
-use libafl_bolts::{current_nanos, rands::StdRand, tuples::tuple_list, AsSlice};
+use libafl_bolts::{rands::StdRand, tuples::tuple_list, AsSlice};
 use std::path::PathBuf;
 /* ANCHOR_END: use */
 
@@ -62,7 +62,7 @@ fn main() {
     // create a State from scratch
     let mut state = StdState::new(
         // RNG
-        StdRand::with_seed(current_nanos()),
+        StdRand::new(),
         // Corpus that will be evolved, we keep it in memory for performance
         InMemoryCorpus::new(),
         // Corpus in which we store solutions (crashes in this example),
@@ -97,7 +97,7 @@ fn main() {
     .expect("Failed to create the Executor");
 
     // Generator of printable bytearrays of max size 32
-    let mut generator = RandPrintablesGenerator::new(32);
+    let mut generator = RandPrintablesGenerator::new(32).unwrap();
 
     // Generate 8 initial inputs
     state

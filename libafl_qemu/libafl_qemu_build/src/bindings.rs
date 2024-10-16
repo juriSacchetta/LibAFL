@@ -1,6 +1,8 @@
-use std::{collections::hash_map, fs, hash::Hasher, io::Read, path::Path};
+use std::path::Path;
 
 use bindgen::{BindgenError, Bindings};
+
+use crate::store_generated_content_if_different;
 
 const WRAPPER_HEADER: &str = r#"
 
@@ -45,6 +47,9 @@ const WRAPPER_HEADER: &str = r#"
 #include "user/safe-syscall.h"
 #include "qemu/selfmap.h"
 #include "cpu_loop-common.h"
+#include "qemu/selfmap.h"
+
+#include "libafl/user.h"
 
 #else
 
@@ -53,10 +58,13 @@ const WRAPPER_HEADER: &str = r#"
 #include "hw/core/sysemu-cpu-ops.h"
 #include "exec/address-spaces.h"
 #include "sysemu/tcg.h"
+#include "sysemu/runstate.h"
 #include "sysemu/replay.h"
 
-#include "libafl_extras/syx-snapshot/device-save.h"
-#include "libafl_extras/syx-snapshot/syx-snapshot.h"
+#include "libafl/system.h"
+#include "libafl/qemu_snapshot.h"
+#include "libafl/syx-snapshot/device-save.h"
+#include "libafl/syx-snapshot/syx-snapshot.h"
 
 #endif
 
@@ -76,9 +84,26 @@ const WRAPPER_HEADER: &str = r#"
 
 #include "qemu/plugin-memory.h"
 
-#include "libafl_extras/exit.h"
-#include "libafl_extras/hook.h"
-#include "libafl_extras/jit.h"
+#include "libafl/cpu.h"
+#include "libafl/gdb.h"
+#include "libafl/exit.h"
+#include "libafl/jit.h"
+#include "libafl/utils.h"
+
+#include "libafl/hook.h"
+
+#include "libafl/hooks/tcg/backdoor.h"
+#include "libafl/hooks/tcg/block.h"
+#include "libafl/hooks/tcg/cmp.h"
+#include "libafl/hooks/tcg/edge.h"
+#include "libafl/hooks/tcg/instruction.h"
+#include "libafl/hooks/tcg/read_write.h"
+#include "libafl/hooks/cpu_run.h"
+#include "libafl/hooks/thread.h"
+
+#ifdef CONFIG_USER_ONLY
+#include "libafl/hooks/syscall.h"
+#endif
 
 "#;
 
@@ -88,31 +113,14 @@ pub fn generate(
     clang_args: Vec<String>,
 ) -> Result<Bindings, BindgenError> {
     let wrapper_h = build_dir.join("wrapper.h");
-    let existing_wrapper_h = fs::File::open(&wrapper_h);
-    let mut must_rewrite_wrapper = true;
 
-    // Check if equivalent wrapper file already exists without relying on filesystem timestamp.
-    if let Ok(mut wrapper_file) = existing_wrapper_h {
-        let mut existing_wrapper_content = Vec::with_capacity(WRAPPER_HEADER.len());
-        wrapper_file
-            .read_to_end(existing_wrapper_content.as_mut())
-            .unwrap();
-
-        let mut existing_wrapper_hasher = hash_map::DefaultHasher::new();
-        existing_wrapper_hasher.write(existing_wrapper_content.as_ref());
-
-        let mut wrapper_h_hasher = hash_map::DefaultHasher::new();
-        wrapper_h_hasher.write(WRAPPER_HEADER.as_bytes());
-
-        // Check if wrappers are the same
-        if existing_wrapper_hasher.finish() == wrapper_h_hasher.finish() {
-            must_rewrite_wrapper = false;
-        }
-    }
-
-    if must_rewrite_wrapper {
-        fs::write(&wrapper_h, WRAPPER_HEADER).expect("Unable to write wrapper.h");
-    }
+    store_generated_content_if_different(
+        &wrapper_h,
+        WRAPPER_HEADER.as_bytes(),
+        None,
+        vec![],
+        false,
+    );
 
     let bindings = bindgen::Builder::default()
         .derive_debug(true)
@@ -125,6 +133,11 @@ pub fn generate(
         })
         .header(wrapper_h.display().to_string())
         .clang_args(clang_args)
+        .allowlist_var("libafl_dump_core_hook")
+        .allowlist_var("libafl_force_dfl")
+        .allowlist_var("mmap_next_start")
+        .allowlist_var("guest_base")
+        .allowlist_var("exec_path")
         .allowlist_type("target_ulong")
         .allowlist_type("target_long")
         .allowlist_type("CPUState")
@@ -136,12 +149,15 @@ pub fn generate(
         .allowlist_type("MemOpIdx")
         .allowlist_type("MemOp")
         .allowlist_type("DeviceSnapshotKind")
+        .allowlist_type("ShutdownCause")
         .allowlist_type("libafl_exit_reason")
         .allowlist_type("libafl_exit_reason_kind")
         .allowlist_type("libafl_exit_reason_sync_backdoor")
         .allowlist_type("libafl_exit_reason_breakpoint")
         .allowlist_type("Syx.*")
-        .allowlist_function("qemu_user_init")
+        .allowlist_type("libafl_mapinfo")
+        .allowlist_type("IntervalTreeRoot")
+        .allowlist_function("qemu_system_debug_request")
         .allowlist_function("target_mmap")
         .allowlist_function("target_mprotect")
         .allowlist_function("target_munmap")
@@ -158,6 +174,12 @@ pub fn generate(
         .allowlist_function("syx_.*")
         .allowlist_function("device_list_all")
         .allowlist_function("libafl_.*")
+        .allowlist_function("read_self_maps")
+        .allowlist_function("free_self_maps")
+        .allowlist_function("pageflags_get_root")
+        .allowlist_function("vm_start")
+        .allowlist_function("qemu_main_loop")
+        .allowlist_function("qemu_cleanup")
         .blocklist_function("main_loop_wait") // bindgen issue #1313
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()));
 
@@ -166,7 +188,7 @@ pub fn generate(
         bindings
             .allowlist_type("CPUX86State")
             .allowlist_type("X86CPU")
-    } else if cpu_target == "arssssm" {
+    } else if cpu_target == "arm" {
         bindings
             .allowlist_type("ARMCPU")
             .allowlist_type("ARMv7MState")

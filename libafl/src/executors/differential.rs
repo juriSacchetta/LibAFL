@@ -1,37 +1,45 @@
 //! Executor for differential fuzzing.
+//!
 //! It wraps two executors that will be run after each other with the same input.
 //! In comparison to the [`crate::executors::CombinedExecutor`] it also runs the secondary executor in `run_target`.
 //!
-use core::{cell::UnsafeCell, fmt::Debug, ptr};
+use core::{
+    cell::UnsafeCell,
+    fmt::Debug,
+    ops::{Deref, DerefMut},
+    ptr,
+};
 
-use libafl_bolts::{ownedref::OwnedMutPtr, tuples::MatchName};
+use libafl_bolts::{
+    ownedref::OwnedMutPtr,
+    tuples::{MatchName, RefIndexable},
+};
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    corpus::Corpus,
     executors::{Executor, ExitKind, HasObservers},
     inputs::UsesInput,
-    observers::{DifferentialObserversTuple, ObserversTuple, UsesObservers},
-    state::UsesState,
+    observers::{DifferentialObserversTuple, ObserversTuple},
+    state::{HasCorpus, UsesState},
     Error,
 };
 
 /// A [`DiffExecutor`] wraps a primary executor, forwarding its methods, and a secondary one
 #[derive(Debug)]
-pub struct DiffExecutor<A, B, OTA, OTB, DOT> {
+pub struct DiffExecutor<A, B, DOT, OTA, OTB> {
     primary: A,
     secondary: B,
     observers: UnsafeCell<ProxyObserversTuple<OTA, OTB, DOT>>,
 }
 
-impl<A, B, OTA, OTB, DOT> DiffExecutor<A, B, OTA, OTB, DOT> {
+impl<A, B, DOT, OTA, OTB> DiffExecutor<A, B, DOT, OTA, OTB> {
     /// Create a new `DiffExecutor`, wrapping the given `executor`s.
     pub fn new(primary: A, secondary: B, observers: DOT) -> Self
     where
         A: UsesState + HasObservers<Observers = OTA>,
-        B: UsesState<State = A::State> + HasObservers<Observers = OTB>,
-        DOT: DifferentialObserversTuple<OTA, OTB, A::State>,
-        OTA: ObserversTuple<A::State>,
-        OTB: ObserversTuple<A::State>,
+        B: UsesState<State = <Self as UsesState>::State> + HasObservers<Observers = OTB>,
+        DOT: DifferentialObserversTuple<OTA, OTB, A::Input, A::State>,
     {
         Self {
             primary,
@@ -55,13 +63,17 @@ impl<A, B, OTA, OTB, DOT> DiffExecutor<A, B, OTA, OTB, DOT> {
     }
 }
 
-impl<A, B, EM, DOT, Z> Executor<EM, Z> for DiffExecutor<A, B, A::Observers, B::Observers, DOT>
+impl<A, B, DOT, EM, Z> Executor<EM, Z> for DiffExecutor<A, B, DOT, A::Observers, B::Observers>
 where
     A: Executor<EM, Z> + HasObservers,
-    B: Executor<EM, Z, State = A::State> + HasObservers,
-    EM: UsesState<State = A::State>,
-    DOT: DifferentialObserversTuple<A::Observers, B::Observers, A::State>,
-    Z: UsesState<State = A::State>,
+    B: Executor<EM, Z, State = <Self as UsesState>::State> + HasObservers,
+    EM: UsesState<State = <Self as UsesState>::State>,
+    <A as HasObservers>::Observers:
+        ObserversTuple<<<A as UsesState>::State as UsesInput>::Input, <A as UsesState>::State>,
+    <B as HasObservers>::Observers:
+        ObserversTuple<<<A as UsesState>::State as UsesInput>::Input, <A as UsesState>::State>,
+    DOT: DifferentialObserversTuple<A::Observers, B::Observers, A::Input, A::State> + MatchName,
+    Z: UsesState<State = <Self as UsesState>::State>,
 {
     fn run_target(
         &mut self,
@@ -119,61 +131,53 @@ pub struct ProxyObserversTuple<A, B, DOT> {
     differential: DOT,
 }
 
-impl<A, B, DOT, S> ObserversTuple<S> for ProxyObserversTuple<A, B, DOT>
+impl<A, B, DOT, I, S> ObserversTuple<I, S> for ProxyObserversTuple<A, B, DOT>
 where
-    A: ObserversTuple<S>,
-    B: ObserversTuple<S>,
-    DOT: DifferentialObserversTuple<A, B, S>,
-    S: UsesInput,
+    A: ObserversTuple<I, S>,
+    B: ObserversTuple<I, S>,
+    DOT: DifferentialObserversTuple<A, B, I, S> + MatchName,
+    S: HasCorpus,
+    S::Corpus: Corpus<Input = I>,
 {
-    fn pre_exec_all(&mut self, state: &mut S, input: &S::Input) -> Result<(), Error> {
+    fn pre_exec_all(&mut self, state: &mut S, input: &I) -> Result<(), Error> {
         self.differential.pre_exec_all(state, input)
     }
 
     fn post_exec_all(
         &mut self,
         state: &mut S,
-        input: &S::Input,
+        input: &I,
         exit_kind: &ExitKind,
     ) -> Result<(), Error> {
         self.differential.post_exec_all(state, input, exit_kind)
     }
 
-    fn pre_exec_child_all(&mut self, state: &mut S, input: &S::Input) -> Result<(), Error> {
+    fn pre_exec_child_all(&mut self, state: &mut S, input: &I) -> Result<(), Error> {
         self.differential.pre_exec_child_all(state, input)
     }
 
     fn post_exec_child_all(
         &mut self,
         state: &mut S,
-        input: &S::Input,
+        input: &I,
         exit_kind: &ExitKind,
     ) -> Result<(), Error> {
         self.differential
             .post_exec_child_all(state, input, exit_kind)
     }
+}
 
-    /// Returns true if a `stdout` observer was added to the list
-    #[inline]
-    fn observes_stdout(&self) -> bool {
-        self.primary.as_ref().observes_stdout() || self.secondary.as_ref().observes_stdout()
-    }
-    /// Returns true if a `stderr` observer was added to the list
-    #[inline]
-    fn observes_stderr(&self) -> bool {
-        self.primary.as_ref().observes_stderr() || self.secondary.as_ref().observes_stderr()
-    }
+impl<A, B, DOT> Deref for ProxyObserversTuple<A, B, DOT> {
+    type Target = DOT;
 
-    /// Runs `observe_stdout` for all stdout observers in the list
-    fn observe_stdout(&mut self, stdout: &[u8]) {
-        self.primary.as_mut().observe_stderr(stdout);
-        self.secondary.as_mut().observe_stderr(stdout);
+    fn deref(&self) -> &Self::Target {
+        &self.differential
     }
+}
 
-    /// Runs `observe_stderr` for all stderr observers in the list
-    fn observe_stderr(&mut self, stderr: &[u8]) {
-        self.primary.as_mut().observe_stderr(stderr);
-        self.secondary.as_mut().observe_stderr(stderr);
+impl<A, B, DOT> DerefMut for ProxyObserversTuple<A, B, DOT> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.differential
     }
 }
 
@@ -183,6 +187,7 @@ where
     B: MatchName,
     DOT: MatchName,
 {
+    #[allow(deprecated)]
     fn match_name<T>(&self, name: &str) -> Option<&T> {
         if let Some(t) = self.primary.as_ref().match_name::<T>(name) {
             Some(t)
@@ -192,6 +197,8 @@ where
             self.differential.match_name::<T>(name)
         }
     }
+
+    #[allow(deprecated)]
     fn match_name_mut<T>(&mut self, name: &str) -> Option<&mut T> {
         if let Some(t) = self.primary.as_mut().match_name_mut::<T>(name) {
             Some(t)
@@ -205,59 +212,48 @@ where
 
 impl<A, B, DOT> ProxyObserversTuple<A, B, DOT> {
     fn set(&mut self, primary: &A, secondary: &B) {
-        self.primary = OwnedMutPtr::Ptr(ptr::from_ref(primary) as *mut A);
-        self.secondary = OwnedMutPtr::Ptr(ptr::from_ref(secondary) as *mut B);
+        self.primary = OwnedMutPtr::Ptr(ptr::from_ref(primary).cast_mut());
+        self.secondary = OwnedMutPtr::Ptr(ptr::from_ref(secondary).cast_mut());
     }
 }
 
-impl<A, B, OTA, OTB, DOT> UsesObservers for DiffExecutor<A, B, OTA, OTB, DOT>
-where
-    A: HasObservers<Observers = OTA>,
-    B: HasObservers<Observers = OTB, State = A::State>,
-    OTA: ObserversTuple<A::State>,
-    OTB: ObserversTuple<A::State>,
-    DOT: DifferentialObserversTuple<OTA, OTB, A::State>,
-{
-    type Observers = ProxyObserversTuple<OTA, OTB, DOT>;
-}
-
-impl<A, B, OTA, OTB, DOT> UsesState for DiffExecutor<A, B, OTA, OTB, DOT>
+impl<A, B, DOT, OTA, OTB> UsesState for DiffExecutor<A, B, DOT, OTA, OTB>
 where
     A: UsesState,
-    B: UsesState<State = A::State>,
 {
     type State = A::State;
 }
 
-impl<A, B, OTA, OTB, DOT> HasObservers for DiffExecutor<A, B, OTA, OTB, DOT>
+impl<A, B, DOT, OTA, OTB> HasObservers for DiffExecutor<A, B, DOT, OTA, OTB>
 where
-    A: HasObservers<Observers = OTA>,
-    B: HasObservers<Observers = OTB, State = A::State>,
-    OTA: ObserversTuple<A::State>,
-    OTB: ObserversTuple<A::State>,
-    DOT: DifferentialObserversTuple<OTA, OTB, A::State>,
+    A: UsesState + HasObservers<Observers = OTA>,
+    B: UsesState<State = <Self as UsesState>::State> + HasObservers<Observers = OTB>,
+    DOT: DifferentialObserversTuple<OTA, OTB, A::Input, A::State> + MatchName,
+    OTA: ObserversTuple<<Self as UsesInput>::Input, <Self as UsesState>::State>,
+    OTB: ObserversTuple<<Self as UsesInput>::Input, <Self as UsesState>::State>,
 {
+    type Observers = ProxyObserversTuple<OTA, OTB, DOT>;
+
     #[inline]
-    fn observers(&self) -> &ProxyObserversTuple<OTA, OTB, DOT> {
+    fn observers(&self) -> RefIndexable<&Self::Observers, Self::Observers> {
         unsafe {
             self.observers
                 .get()
                 .as_mut()
                 .unwrap()
-                .set(self.primary.observers(), self.secondary.observers());
-            self.observers.get().as_ref().unwrap()
+                .set(&*self.primary.observers(), &*self.secondary.observers());
+            RefIndexable::from(self.observers.get().as_ref().unwrap())
         }
     }
 
     #[inline]
-    fn observers_mut(&mut self) -> &mut ProxyObserversTuple<OTA, OTB, DOT> {
+    fn observers_mut(&mut self) -> RefIndexable<&mut Self::Observers, Self::Observers> {
         unsafe {
-            self.observers
-                .get()
-                .as_mut()
-                .unwrap()
-                .set(self.primary.observers(), self.secondary.observers());
-            self.observers.get().as_mut().unwrap()
+            self.observers.get().as_mut().unwrap().set(
+                &*self.primary.observers_mut(),
+                &*self.secondary.observers_mut(),
+            );
+            RefIndexable::from(self.observers.get().as_mut().unwrap())
         }
     }
 }
